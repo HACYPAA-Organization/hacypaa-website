@@ -747,6 +747,19 @@
       html { scroll-behavior: auto; }
       *, *::before, *::after { transition-duration: 0.01ms !important; }
     }
+.hero-graphic {
+  display: block;
+  left: 50%;
+  max-height: 78%;
+  max-width: 86%;
+  mix-blend-mode: multiply;
+  object-fit: contain;
+  position: absolutel;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 86%;
+  z-index: 1;
+}
   </style>
 </head>
 
@@ -794,14 +807,10 @@
 
       <div class="hero-art" aria-label="Divine Paradox abstract artwork">
         <p class="art-label">Opposites in harmony</p>
-        <div class="paradox-orbit" aria-hidden="true">
-          <div class="paradox-disc">
-            <span class="disc-light"></span>
-            <span class="disc-dark"></span>
-            <span class="small-disc small-disc-top"></span>
-            <span class="small-disc small-disc-bottom"></span>
-          </div>
-        </div>
+        <img
+          class="hero-graphic"
+          src="pups.png"
+          alt="Two puppies carrying a branch beneath a barbed-wired emblem with the words dare to be vulnerable."
         <p class="art-number">H·A</p>
         <p class="art-caption">Many paths.<br>One purpose.</p>
       </div>
