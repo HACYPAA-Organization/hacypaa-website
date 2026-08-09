@@ -82,7 +82,15 @@
 
     .header-cta {
       border: 1px solid var(--paper);
-      border-radius: 999px;
+      border-radius: 0px;
+      clip-path: polygon(
+        10px 0,
+        100% 0,
+        100% calc(100% - 10px),
+        calc(100% - 10px) 100%,
+        0 100%,
+        0 10px
+        );
       font-size: 12px;
       font-weight: 650;
       justify-self: end;
@@ -156,7 +164,15 @@
     .button {
       align-items: center;
       border: 1px solid var(--paper);
-      border-radius: 999px;
+      border-radius: 0;
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
       display: inline-flex;
       font-size: 12px;
       font-weight: 700;
@@ -184,7 +200,7 @@
 
     .hero-art::before {
       border: 1px solid var(--line-light);
-      border-radius: 50%;
+      border-radius: 0;
       content: "";
       height: 118%;
       left: 50%;
