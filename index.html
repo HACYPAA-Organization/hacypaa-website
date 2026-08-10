@@ -781,7 +781,91 @@
     margin-top: 0.16em;
     -webkit-text-stroke: 2px var(--paper);
   }
+/* Program, events, and merchandise */
+.coming-section {
+  background: #11110f;
+  border-bottom: 1px solid var(--line-dark);
+  border-top: 1px solid var(--line-dark);
+  padding: clamp(90px, 10vw, 150px) clamp(22px, 6vw, 100px);
+}
 
+.coming-heading {
+  border-bottom: 3px solid var(--paper);
+  margin-bottom: 50px;
+  padding-bottom: 45px;
+}
+
+.coming-heading h2 {
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: clamp(58px, 7vw, 110px);
+  letter-spacing: -0.035em;
+  line-height: 0.82;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.coming-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coming-card {
+  background: var(--paper);
+  border: 2px solid var(--paper);
+  box-shadow: 8px 8px 0 #444139;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 390px;
+  padding: 30px;
+}
+
+.coming-number {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.coming-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.coming-card h3 {
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: clamp(42px, 4vw, 64px);
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.coming-card p {
+  line-height: 1.6;
+  max-width: 320px;
+}
+
+.coming-status {
+  border-top: 1px solid var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding-top: 16px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .coming-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coming-card {
+    min-height: 330px;
+  }
+}
   </style>
 </head>
 
@@ -889,7 +973,45 @@
         <a class="button button-outline" href="#register">Plan your weekend <span aria-hidden="true">↗</span></a>
       </div>
     </section>
+ <section class="coming-section" aria-labelledby="coming-title">
+   <div class="coming-heading">
+     <p class="section-kicker light-kicker">More than a meeting</p>
+     <h2 id="coming-title">The weekend<br>takes shape.</h2>
+   </div>
 
+   <div class="coming-grid">
+     <article class="coming-card" id="program">
+       <span class="coming-number">01</span>
+       <div>
+         <p class="coming-label">Conference</p>
+         <h3>Programs</h3>
+         <p>Speakers, panels, workshops, meetings, entertainment.</p>
+       </div>
+       <span class="coming-statuts">Schedule coming soon</span>
+     </article>
+     
+    <article class="coming-card" id="events">
+      <span class="coming-number">02</span>
+      <div>
+        <p class="coming-label">Before the conference</p>
+        <h3>Events</h3>
+        <p>Fundraisers, committee events, and ways to connect before the weekend.</p>
+      </div>
+      <span class="coming-status">Announcements coming soon</span>
+    </article>
+
+    <article class="coming-card" id="merch">
+      <span class="coming-number">03</span>
+      <div>
+        <p class="coming-label">Wear the paradox</p>
+        <h3>Merch</h3>
+        <p>Official Divine Paradox merchandise supporting HACYPAA</p>
+      </div>
+      <span class="coming-status">Store coming soon</span>
+    </article>
+   </div>
+ </section>
+    
     <section class="action-section" id="register">
       <div class="section-index"><span>03</span><p>Save your place</p></div>
       <div class="action-heading">
