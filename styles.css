@@ -1242,125 +1242,144 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-/* Neon poster depth, breathing glow, and tube flicker */
+/* Neon poster system */
 .event-poster-panel {
   isolation: isolate;
   position: relative;
 }
 
-/* Slow breathing light behind the poster */
+/* Large ambient light behind everything */
 .event-poster-panel::before {
-  animation: event-neon-breathe 4.8s ease-in-out infinite;
+  animation: event-ambient-breathe 4s ease-in-out infinite;
   background: radial-gradient(
     ellipse at center,
-    rgba(255, 24, 56, 0.55) 0%,
-    rgba(255, 24, 56, 0.22) 43%,
-    rgba(255, 24, 56, 0) 74%
+    rgba(255, 24, 56, 0.85) 0%,
+    rgba(255, 24, 56, 0.5) 38%,
+    rgba(255, 24, 56, 0.2) 60%,
+    rgba(255, 24, 56, 0) 80%
   );
   content: "";
-  filter: blur(24px);
-  inset: -35px -30px -45px;
-  opacity: 0.5;
+  filter: blur(42px);
+  inset: -75px -65px -90px;
+  opacity: 0.38;
   pointer-events: none;
   position: absolute;
-  transform: scale(0.96);
+  transform: scale(0.94);
   z-index: 0;
 }
 
-/* Stronger breathing red halo */
-.event-poster-panel::before {
-  animation: event-neon-breathe 4.2s ease-in-out infinite;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(255, 24, 56, 0.9) 0%,
-    rgba(255, 24, 56, 0.58) 28%,
-    rgba(255, 24, 56, 0.24) 55%,
-    rgba(255, 24, 56, 0) 78%
-  );
-  content: "";
-  filter: blur(32px);
-  inset: -55px -50px -65px;
-  opacity: 0.48;
-  pointer-events: none;
-  position: absolute;
-  transform: scale(0.91);
-  will-change: opacity, transform;
-  z-index: 0;
+/* Physical depth stays solid */
+.event-poster-frame {
+  animation: none;
+  box-shadow:
+    4px 5px 0 #160308,
+    10px 12px 0 #860d20,
+    17px 20px 0 var(--event-accent),
+    28px 34px 38px rgba(0, 0, 0, 0.48);
+  isolation: isolate;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
 }
 
-/* Brighter white-hot neon tube */
+/* White-hot neon tube */
 .event-poster-frame::before {
-  animation: event-neon-tube-flicker 8.6s infinite steps(1, end);
-  border: 3px solid #ffe8ec;
+  animation: event-neon-flicker 9.5s infinite steps(1, end);
+  border: 3px solid #fff7f8;
   box-shadow:
     0 0 2px #ffffff,
-    0 0 7px #ff8b9d,
-    0 0 14px #ff2947,
-    0 0 28px #ff1838,
-    0 0 48px rgba(255, 24, 56, 0.72),
-    inset 0 0 10px rgba(255, 24, 56, 0.85);
+    0 0 6px #ffc0ca,
+    0 0 12px #ff4962,
+    0 0 24px #ff1838,
+    inset 0 0 10px #ff1838;
   content: "";
-  inset: -6px;
+  inset: -7px;
   opacity: 1;
   pointer-events: none;
   position: absolute;
-  will-change: filter, opacity;
   z-index: 3;
 }
 
-/* More visible breathing movement */
-@keyframes event-neon-breathe {
+/* Concentrated breathing light around the tube */
+.event-poster-frame::after {
+  animation: event-tube-breathe 4s ease-in-out infinite;
+  border: 7px solid rgba(255, 24, 56, 0.62);
+  box-shadow:
+    0 0 24px 8px rgba(255, 24, 56, 0.72),
+    0 0 58px 18px rgba(255, 24, 56, 0.42);
+  content: "";
+  filter: blur(12px);
+  inset: -13px;
+  opacity: 0.45;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.985);
+  z-index: 2;
+}
+
+.event-poster-frame img {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes event-ambient-breathe {
   0%,
   100% {
-    opacity: 0.48;
-    transform: scale(0.91);
+    opacity: 0.32;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes event-tube-breathe {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.985);
   }
 
   50% {
     opacity: 1;
-    transform: scale(1.11);
+    transform: scale(1.025);
   }
 }
 
-/* Short electrical sputters; tube remains on most of the time */
-@keyframes event-neon-tube-flicker {
+@keyframes event-neon-flicker {
   0%,
-  23.4%,
-  24.2%,
-  24.9%,
-  68.1%,
-  68.9%,
-  69.4%,
+  19.7%,
+  20.5%,
+  64.8%,
+  65.7%,
   100% {
     filter: brightness(1.08);
     opacity: 1;
   }
 
-  23.6%,
-  24.5%,
-  68.3%,
-  69.1% {
-    filter: brightness(0.35);
-    opacity: 0.3;
+  19.8%,
+  20.15%,
+  64.9%,
+  65.3% {
+    filter: brightness(0.45);
+    opacity: 0.32;
   }
 
-  23.85%,
-  24.7%,
-  68.6%,
-  69.25% {
-    filter: brightness(2.0);
+  19.95%,
+  20.35%,
+  65.1%,
+  65.5% {
+    filter: brightness(1.7);
     opacity: 0.92;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .event-poster-panel::before,
-  .event-poster-frame::before {
+  .event-poster-frame::before,
+  .event-poster-frame::after {
     animation: none;
-  }
-
-  .event-poster-panel::before {
-    opacity: 0.55;
-    transform: none;
   }
 }
