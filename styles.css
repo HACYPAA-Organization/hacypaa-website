@@ -1169,10 +1169,6 @@
     grid-template-columns: 1fr;
   }
 
-  .event-poster-panel {
-    margin: 0 auto;
-    max-width: 520px;
-  }
 
   .events-followup {
     grid-template-columns: 1fr;
