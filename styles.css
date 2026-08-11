@@ -1195,12 +1195,6 @@
     border-bottom: 0;
   }
 }
-.event-poster-frame {
-  box-shadow:
-    14px 14px 0 var(--event-accent),
-    0 0 34px rgba(255, 24, 56, 0.25);
-}
-
 .event-facts dd {
   font-size: clamp(19px, 2vw, 25px);
   line-height: 1.12;
