@@ -1242,57 +1242,47 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-/* Flickering neon glow behind event poster */
-.event-poster-panel {
-  isolation: isolate;
-  position: relative;
-}
-
+/* Flickering neon poster glow */
 .event-poster-frame {
+  animation: event-neon-flicker 3.6s infinite steps(1, end);
   position: relative;
   z-index: 1;
 }
 
-.event-poster-panel::before {
-  animation: event-neon-flicker 5.7s infinite steps(1, end);
-  background: var(--event-accent);
-  content: "";
-  filter: blur(38px);
-  inset: -8px;
-  opacity: 0.5;
-  pointer-events: none;
-  position: absolute;
-  z-index: -1;
-}
-
 @keyframes event-neon-flicker {
   0%,
-  16%,
-  22%,
-  52%,
-  58%,
-  100% {
-    opacity: 0.5;
-  }
-
-  17%,
-  20%,
-  53%,
-  56% {
-    opacity: 0.08;
-  }
-
+  14%,
   18%,
-  21%,
-  54%,
-  57% {
-    opacity: 0.85;
+  22%,
+  60%,
+  64%,
+  100% {
+    box-shadow:
+      14px 14px 0 var(--event-accent),
+      0 0 18px var(--event-accent),
+      0 0 45px var(--event-accent);
+  }
+
+  15%,
+  17%,
+  61%,
+  63% {
+    box-shadow:
+      14px 14px 0 var(--event-accent),
+      0 0 4px var(--event-accent);
+  }
+
+  16%,
+  62% {
+    box-shadow: 14px 14px 0 var(--event-accent);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .event-poster-panel::before {
+  .event-poster-frame {
     animation: none;
-    opacity: 0.4;
+    box-shadow:
+      14px 14px 0 var(--event-accent),
+      0 0 25px var(--event-accent);
   }
 }
