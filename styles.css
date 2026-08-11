@@ -1242,47 +1242,129 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-/* Flickering neon poster glow */
+/* Neon poster depth, breathing glow, and tube flicker */
+.event-poster-panel {
+  isolation: isolate;
+  position: relative;
+}
+
+/* Slow breathing light behind the poster */
+.event-poster-panel::before {
+  animation: event-neon-breathe 4.8s ease-in-out infinite;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 24, 56, 0.55) 0%,
+    rgba(255, 24, 56, 0.22) 43%,
+    rgba(255, 24, 56, 0) 74%
+  );
+  content: "";
+  filter: blur(24px);
+  inset: -35px -30px -45px;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.96);
+  z-index: 0;
+}
+
+/* Solid layered shadow gives the poster depth */
 .event-poster-frame {
-  animation: event-neon-flicker 3.6s infinite steps(1, end);
+  animation: none;
+  box-shadow:
+    4px 5px 0 #160308,
+    10px 12px 0 #860d20,
+    17px 20px 0 var(--event-accent),
+    26px 32px 34px rgba(0, 0, 0, 0.4);
+  isolation: isolate;
+  overflow: visible;
   position: relative;
   z-index: 1;
 }
 
-@keyframes event-neon-flicker {
+/* Bright neon tube around the poster */
+.event-poster-frame::before {
+  animation: event-neon-tube-flicker 8.6s infinite steps(1, end);
+  border: 2px solid #ff2947;
+  box-shadow:
+    0 0 3px #fff4f5,
+    0 0 8px #ff1838,
+    0 0 18px rgba(255, 24, 56, 0.9),
+    inset 0 0 8px rgba(255, 24, 56, 0.7);
+  content: "";
+  inset: -4px;
+  opacity: 0.95;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.event-poster-frame img {
+  position: relative;
+  z-index: 1;
+}
+
+.event-poster-frame:hover {
+  box-shadow:
+    5px 6px 0 #160308,
+    12px 14px 0 #860d20,
+    20px 23px 0 var(--event-accent),
+    31px 38px 40px rgba(0, 0, 0, 0.42);
+  transform: translate(-4px, -4px);
+}
+
+/* Smooth red breathing */
+@keyframes event-neon-breathe {
   0%,
-  14%,
-  18%,
-  22%,
-  60%,
-  64%,
   100% {
-    box-shadow:
-      14px 14px 0 var(--event-accent),
-      0 0 18px var(--event-accent),
-      0 0 45px var(--event-accent);
+    opacity: 0.4;
+    transform: scale(0.96);
   }
 
-  15%,
-  17%,
+  50% {
+    opacity: 0.78;
+    transform: scale(1.04);
+  }
+}
+
+/* Brief electrical flickers while remaining mostly illuminated */
+@keyframes event-neon-tube-flicker {
+  0%,
+  17.8%,
+  18.4%,
+  18.9%,
   61%,
-  63% {
-    box-shadow:
-      14px 14px 0 var(--event-accent),
-      0 0 4px var(--event-accent);
+  61.8%,
+  62.4%,
+  100% {
+    filter: brightness(1);
+    opacity: 0.95;
   }
 
-  16%,
+  18%,
+  18.6%,
+  61.2%,
   62% {
-    box-shadow: 14px 14px 0 var(--event-accent);
+    filter: brightness(0.55);
+    opacity: 0.28;
+  }
+
+  18.2%,
+  18.75%,
+  61.5%,
+  62.2% {
+    filter: brightness(1.35);
+    opacity: 0.82;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .event-poster-frame {
+  .event-poster-panel::before,
+  .event-poster-frame::before {
     animation: none;
-    box-shadow:
-      14px 14px 0 var(--event-accent),
-      0 0 25px var(--event-accent);
+  }
+
+  .event-poster-panel::before {
+    opacity: 0.55;
+    transform: none;
   }
 }
