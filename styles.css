@@ -1252,3 +1252,54 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* Flickering neon glow behind event poster */
+.event-poster-frame {
+  box-shadow: 14px 14px 0 var(--event-accent);
+  position: relative;
+  z-index: 1;
+}
+
+.event-poster-panel::before {
+  animation: event-neon-flicker 5.7s infinite steps(1, end);
+  background: var(--event-accent);
+  content: "";
+  filter: blur(34px);
+  inset: 8% 5%;
+  opacity: 0.34;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+@keyframes event-neon-flicker {
+  0%,
+  16%,
+  18%,
+  22%,
+  52%,
+  54%,
+  56%,
+  100% {
+    opacity: 0.34;
+  }
+
+  17%,
+  20%,
+  53%,
+  55% {
+    opacity: 0.07;
+  }
+
+  19%,
+  21%,
+  54.5% {
+    opacity: 0.58;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-poster-panel::before {
+    animation: none;
+    opacity: 0.3;
+  }
+}
