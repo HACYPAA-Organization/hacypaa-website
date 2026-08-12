@@ -1054,6 +1054,9 @@ footer > p {
   }
   .theme-banner {
     height: 76px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
   .hotel-visual {
     min-height: 520px;
