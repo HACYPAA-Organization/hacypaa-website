@@ -128,7 +128,7 @@ img {
 .hero {
   display: grid;
   grid-template-columns: 57% 43%;
-  min-height: calc(100svh - 189px);
+  min-height: calc(100svh - 200px);
 }
 
 .hero-copy {
