@@ -1597,7 +1597,7 @@ footer > p {
     0 0 20px rgba(255, 24, 56, 0.9),
     inset 0 0 12px rgba(255, 24, 56, 0.72);
   content: "";
-  inset: 4.5% 11% 4.5% 9.5%;
+  inset: -6px;
   opacity: 0.86;
   pointer-events: none;
   position: absolute;
