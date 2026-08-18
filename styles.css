@@ -1742,6 +1742,17 @@ footer > p {
   .event-copy h2 {
     font-size: clamp(54px, 14vw, 82px);
   }
+
+  .hero-art {
+    overflow: hidden;
+  }
+
+  .hero-event-preview {
+    left: 50%;
+    max-width: 340px;
+    transform: translate(-50%, -50%);
+    width: 72%;
+  }
 }
 
 /* Phones */
@@ -1851,13 +1862,13 @@ footer > p {
   --event-accent:#ff1838;
   --event-accent-text:#fffaf2;
 
-  left: 50%;
-  max-width: 300px;
+  left: 0;
+  max-width: 390px;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 60%;
-  z-index: 2;
+  width: 68%;
+  z-index: 3;
 }
 .hero-event-preview::before {
   filter: blur(24px);
@@ -1867,4 +1878,17 @@ footer > p {
 .hero-art .art-number,
 .hero-art .art-caption {
   z-index: 4;
+}
+.hero {
+  overflow: hidden;
+}
+
+.hero-art {
+  overflow: visible;
+  z-index: 1;
+}
+
+.hero-art::before {
+  height: 100%;
+  width: 100%;
 }
