@@ -1847,7 +1847,6 @@ footer > p {
 .hero-event-preview {
   left: 50%;
   max-width: 340px;
-  max-height: fit-content;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
