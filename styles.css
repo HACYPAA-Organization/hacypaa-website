@@ -1862,7 +1862,7 @@ footer > p {
   --event-accent:#ff1838;
   --event-accent-text:#fffaf2;
 
-  left: 0;
+  left: 30%;
   max-width: 390px;
   position: absolute;
   top: 50%;
