@@ -1846,10 +1846,19 @@ footer > p {
 }
 .hero-event-preview {
   left: 50%;
-  max-width: 340px;
+  max-width: 280px;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 70%;
+  width: 55%;
   z-index: 2;
+}
+.hero-event-preview::before {
+  filter: blur(24px);
+  inset: -16px;
+}
+.hero-art .art-label,
+.hero-art .art-number,
+.hero-art .art-caption {
+  z-index: 4;
 }
