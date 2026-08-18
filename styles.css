@@ -1844,16 +1844,17 @@ footer > p {
     transform: none;
   }
 }
+
 .hero-event-preview {
   --event-accent:#ff1838;
   --event-accent-text:#fffaf2;
-  
+
   left: 50%;
-  max-width: 280px;
+  max-width: 300px;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 55%;
+  width: 60%;
   z-index: 2;
 }
 .hero-event-preview::before {
