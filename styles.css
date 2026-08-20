@@ -1862,7 +1862,7 @@ footer > p {
   --event-accent:#ff1838;
   --event-accent-text:#fffaf2;
 
-  left: 30%;
+  left: 50%;
   max-width: 390px;
   position: absolute;
   top: 50%;
@@ -1870,25 +1870,24 @@ footer > p {
   width: 68%;
   z-index: 3;
 }
+
 .hero-event-preview::before {
   filter: blur(24px);
   inset: -16px;
 }
-.hero-art .art-label,
-.hero-art .art-number,
-.hero-art .art-caption {
-  z-index: 4;
-}
-.hero {
+
+.hero-art {
   overflow: hidden;
 }
 
-.hero-art {
-  overflow: visible;
-  z-index: 1;
+.hero-art .art-number,
+.hero-art . .art-caption {
+  z-index: 4;
 }
 
-.hero-art::before {
-  height: 100%;
-  width: 100%;
+@media (max-widdth: 560px) {
+  .hero-event-preview {
+    max-width: 300px;
+    width: 72%;
+  }
 }
