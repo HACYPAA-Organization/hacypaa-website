@@ -348,6 +348,8 @@ img {
   right: clamp(26px, 4vw, 64px);
   text-align: right;
   text-transform: uppercase;
+  position: absolute;
+  z-index: 10;
 }
 
 .facts {
@@ -1881,13 +1883,23 @@ footer > p {
 }
 
 .hero-art .art-number,
-.hero-art . .art-caption {
-  z-index: 4;
+.hero-art .art-caption {
+  position: absolute;
+  z-index: 10;
 }
 
 @media (max-widdth: 560px) {
   .hero-event-preview {
+    left: 50%;
     max-width: 300px;
+    top: calc(50% - 700px);
+    transform: translate(-50%, -50%);
     width: 72%;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero-event-preview {
+    margin-top: -30px;
   }
 }
