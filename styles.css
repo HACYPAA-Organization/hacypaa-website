@@ -1893,3 +1893,111 @@ footer > p {
     margin-top: -30px;
   }
 }
+
+.committee-widget {
+  background: #f5efe3;
+  border: 1px solid rgba(11, 11, 10, 0.2);
+  color: #0b0b0a;
+  display: grid;
+  gap: 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+  margin: 0 auto;
+  max-width: 1400px;
+  padding: clamp(42px, 6vw, 80px);
+  position: relative;
+}
+
+.committee-widget::before {
+  background: #d31330;
+  content: "";
+  height:  6px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.committee-widget-copy h2 {
+  font-size: clamp(42px, 6vw, 76px);
+  line-height: 0.95;
+  margin: 12px 0 24px;
+  max-width: 700px;
+  text-transform: uppercase;
+}
+
+.committee-widget-copy > p:last-child {
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 620px;
+}
+
+.committee-widget-details {
+  border-top: 1px solid rgba(11, 11, 10, 0.25);
+}
+
+.committee-widget > div {
+  border-bottom: 1px solid rgba(11, 11, 10, 0.25);
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 90px 1fr;
+  padding: 20px 0;
+}
+
+.committee-widget-details span,
+.discord-widget-slot span {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.committee-widget-details strong {
+  font-size: 18px;
+}
+
+.discord-widget-slot {
+  align-items: center;
+  background: #0b0b0ba;
+  color: #f5efe3;
+  display: flex;
+  gap: 32px;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding: 28px 32px;
+}
+
+.discord-widget-slot strong {
+  display: block;
+  font-size: 20px;
+  margin-top: 6px;
+}
+
+.discord-widget-slot p {
+  margin: 0;
+  max-width: 440px;
+}
+
+@media (max-width: 900px) {
+  .committee-widget {
+    grid-template-columns: 1fr;
+  }
+
+  .discord-widget-slot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .committee-widget {
+    padding: 48px 20px;
+  }
+
+  .committee-widget-details > div {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .discord-widget-slot {
+    padding: 24px 20px
+  }
+}
