@@ -1935,7 +1935,7 @@ footer > p {
   border-top: 1px solid rgba(11, 11, 10, 0.25);
 }
 
-.committee-widget > div {
+.committee-widget-details > div {
   border-bottom: 1px solid rgba(11, 11, 10, 0.25);
   display: grid;
   gap: 20px;
@@ -1956,7 +1956,7 @@ footer > p {
 
 .discord-widget-slot {
   align-items: center;
-  background: #0b0b0ba;
+  background: #0b0b0a;
   color: #f5efe3;
   display: flex;
   gap: 32px;
@@ -1998,6 +1998,123 @@ footer > p {
   }
 
   .discord-widget-slot {
-    padding: 24px 20px
+    padding: 24px 20px;
+  }
+}
+
+.interior-hero .about-hero {
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1fr 1fr;
+  min-height: 720px;
+  padding: 0;
+}
+
+.about-hero-content {
+  background: #0b0b0a;
+  color: #f5efe3;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; 
+}
+
+.about-hero-content .interior-hero-copy {
+  max-width: 720px;
+  width: 100%;
+}
+
+.about-hero-art {
+  background: #d31330;
+  display: grid;
+  overflow: hidden;
+  padding: clamp(30px, 5vw, 80px);
+  place-items: center;
+}
+
+.about-hero-art img {
+  display: block;
+  max-height: 620px;
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+}
+
+@media (max-width: 900px) {
+  .interior-hero.about-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .about-hero-content {
+    min-height: 620px;
+  }
+
+  .about-hero-art {
+    min-height: 440px;
+  }
+}
+
+@media (max-width: 560px) {
+  .about-hero-content {
+    min-height: 540px;
+    padding: 56px 20px;
+  }
+
+  .about-hero-art {
+    min-height: 340px;
+    padding: 30px 20px;
+  }
+}
+
+.about-hero {
+  display: grid !important;
+  gap: 0;
+  grid-template-columns: minmax(0, 70%) minmax(0, 30%) !important;
+  min-height: 720px;
+  padding: 0 !important;
+}
+
+.about-hero-content {
+  background: #0b0b0a;
+  color: #f5efe3;
+  min-width: 0;
+  padding: clamp(42px, 4vw, 72px);
+}
+
+.about-hero-content .interior-hero-copy h1 {
+  font-size: clamp(58px, 5.5vw, 104px);
+  line-height: 0.88;
+  max-width: 1050px;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.about-hero-art {
+  background: #60747a;
+  display: grid;
+  isolation: isolate;
+  min-width: 0;
+  overflow: hidden;
+  padding: 30px;
+  place-items: center;
+}
+
+.about-hero-art img {
+  display: block;
+  max-height: 580px;
+  max-width: 88%;
+  mix-blend-mode: multiply;
+  object-fit: contain;
+  width: auto;
+}
+
+@media (max-width: 900px) {
+  .about-hero {
+    grid-template: 1fr !important;
+    min-height: auto;
+  }
+
+  .about-hero-art {
+    min-height: 400px;
   }
 }
