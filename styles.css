@@ -2002,6 +2002,8 @@ footer > p {
   }
 }
 
+/* About Hero */
+
 .interior-hero .about-hero {
   display: grid;
   gap: 0;
@@ -2069,7 +2071,7 @@ footer > p {
 .about-hero {
   display: grid !important;
   gap: 0;
-  grid-template-columns: minmax(0, 70%) minmax(0, 30%) !important;
+  grid-template-columns: minmax(0, 50%) minmax(0, 50%) !important;
   min-height: 720px;
   padding: 0 !important;
 }
@@ -2101,8 +2103,8 @@ footer > p {
 
 .about-hero-art img {
   display: block;
-  max-height: 580px;
-  max-width: 88%;
+  max-height: 650px;
+  max-width: 95%;
   mix-blend-mode: multiply;
   object-fit: contain;
   width: auto;
@@ -2117,4 +2119,14 @@ footer > p {
   .about-hero-art {
     min-height: 400px;
   }
+}
+
+.about-hero-content .interior-intro + .interior-intro {
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+
+.interior-hero.about-hero {
+  height: auto;
+  min-height: 720px;
 }
