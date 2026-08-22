@@ -1888,16 +1888,6 @@ footer > p {
   z-index: 10;
 }
 
-@media (max-widdth: 560px) {
-  .hero-event-preview {
-    left: 50%;
-    max-width: 300px;
-    top: calc(50% - 700px);
-    transform: translate(-50%, -50%);
-    width: 72%;
-  }
-}
-
 @media (max-width: 900px) {
   .hero-event-preview {
     margin-top: -30px;
