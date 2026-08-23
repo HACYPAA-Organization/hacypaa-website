@@ -2004,70 +2004,6 @@ footer > p {
 
 /* About Hero */
 
-.interior-hero .about-hero {
-  display: grid;
-  gap: 0;
-  grid-template-columns: 1fr 1fr;
-  min-height: 720px;
-  padding: 0;
-}
-
-.about-hero-content {
-  background: #0b0b0a;
-  color: #f5efe3;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between; 
-}
-
-.about-hero-content .interior-hero-copy {
-  max-width: 720px;
-  width: 100%;
-}
-
-.about-hero-art {
-  background: #d31330;
-  display: grid;
-  overflow: hidden;
-  padding: clamp(30px, 5vw, 80px);
-  place-items: center;
-}
-
-.about-hero-art img {
-  display: block;
-  max-height: 620px;
-  max-width: 100%;
-  object-fit: contain;
-  width: auto;
-}
-
-@media (max-width: 900px) {
-  .interior-hero.about-hero {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .about-hero-content {
-    min-height: 620px;
-  }
-
-  .about-hero-art {
-    min-height: 440px;
-  }
-}
-
-@media (max-width: 560px) {
-  .about-hero-content {
-    min-height: 540px;
-    padding: 56px 20px;
-  }
-
-  .about-hero-art {
-    min-height: 340px;
-    padding: 30px 20px;
-  }
-}
-
 .about-hero {
   display: grid !important;
   gap: 0;
@@ -2111,11 +2047,10 @@ footer > p {
 }
 
 @media (max-width: 900px) {
-  .about-hero {
-    grid-template: 1fr !important;
+  .interior-hero.about-hero {
+    grid-template-columns: 1fr !important;
     min-height: auto;
   }
-
   .about-hero-art {
     min-height: 400px;
   }
