@@ -2065,3 +2065,21 @@ footer > p {
   height: auto;
   min-height: 720px;
 }
+
+/* Custom 404 page */
+
+.not-found {
+  align-items: center;
+  min-height: calc(100vh - 88px);
+}
+
+.not-found-link {
+  margin-top: 32px;
+
+}
+
+@media (max-width:900px) {
+  .not-found {
+    min-height: calc(100vh-8);
+  }
+}
