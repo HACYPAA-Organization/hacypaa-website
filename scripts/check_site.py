@@ -146,7 +146,7 @@ class SiteParser(HTMLParser):
 def parse_pages():
     parsed = {}
 
-    for path in sorted(ROOT.glob("*.html")):
+    for path in sorted(ROOT.rglob("*.html")):
         parser = SiteParser(path)
         parser.feed(path.read_text(encoding="utf-8"))
         parser.close()
