@@ -198,16 +198,44 @@
           <strong id="cart-subtotal">$0.00</strong>
         </div>
         <p>Shipping and any applicable tax are calculated at checkout.</p>
-        <button class="merch-button merch-button-red cart-checkout" type="button" disabled>
-          Checkout connection is next
+        <button
+          class="merch-button merch-button-red cart-checkout"
+          type="button"
+          data-checkout-open
+          disabled
+        >
+          Secure checkout
         </button>
       </div>
     </dialog>
 
+    <dialog class="merch-dialog checkout-dialog" id="checkout-dialog">
+      <div class="cart-heading">
+        <div>
+          <p class="merch-overline">Secure payment</p>
+          <h2>Checkout</h2>
+        </div>
+
+        <button
+          class="dialog-close"
+          type="button"
+          data-checkout-close
+          aria-label="Close checkout"
+        >
+          Close
+        </button>
+      </div>
+
+      <p id="checkout-status">Loading secure checkout...</p>
+      <div id="checkout"></div>
+    </dialog>
+
     <p class="merch-toast" id="merch-toast" role="status" aria-live="polite"></p>
 
+    <script src="https://js.stripe.com/dahlia/stripe.js"></script>
     <script src="/assets/js/script.js"></script>
     <script src="/assets/js/merch-products.js"></script>
     <script src="/assets/js/merch.js"></script>
+    <script src="/assets/js/checkout.js?v=3"></script>
   </body>
 </html>

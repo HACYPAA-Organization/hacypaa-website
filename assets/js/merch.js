@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const checkoutButton = document.querySelector("[data-checkout-open]");
   const products = Array.isArray(window.HACYPAA_PRODUCTS)
     ? window.HACYPAA_PRODUCTS
     : [];
@@ -14,7 +15,7 @@
   const cartItems = document.querySelector("#cart-items");
   const cartSubtotal = document.querySelector("#cart-subtotal");
   const toast = document.querySelector("#merch-toast");
-  const storageKey = "hacypaa-merch-cart-v1";
+  const storageKey = "hacypaa-merch-cart-v2";
 
   const descriptions = {
     "Divine Paradox Band Hoodie":
@@ -518,6 +519,11 @@
     });
 
     cartSubtotal.textContent = formatMoney(cartTotal());
+
+    if (checkoutButton) {
+      checkoutButton.disabled = cart.length === 0;
+    }
+    
   }
 
   function showToast(message) {
