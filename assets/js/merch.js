@@ -647,6 +647,12 @@
     });
   });
 
+  window.addEventListener("hacypaa:cart-cleared", function() {
+    cart= [];
+    saveCart();
+    renderCart();
+  });
+
   renderProducts();
   renderCart();
 })();

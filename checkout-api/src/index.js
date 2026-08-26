@@ -211,6 +211,102 @@ export default {
 			});
 		}
 
+		if (
+			request.method === "GET" &&
+			url.pathname === "/checkout/session-status"
+		) {
+			const sessionID =
+			url.searchParams.get("session_id")?.trim() || "";
+
+			if (!/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionID)) {
+				return json(
+					{
+						ok: false,
+						error: "A valid Checkout Session ID is required" ,
+					},
+					400,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+
+			if (!env.STRIPE_SECRET_KEY) {
+				return json(
+					{
+						ok: false,
+						error: "Stripe is not configured",
+					},
+					500,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+
+			try {
+				const stripe = new Stripe(env.STRIPE_SECRET_KEY.trim());
+
+				const session = await stripe.checkout.sessions.retrieve(
+					sessionID,
+					{
+						expand: ["line_items"],
+					},
+				);
+
+				const items = (session.line_items?.data || []).map(
+					(item) => ({
+						description: item.description || "Merchandise",
+						quantity: item.quantity || 0,
+						amountTotal: item.amount_total || 0,
+					}),
+				);
+
+				return json(
+					{
+						ok: true,
+						sessionId: session.id,
+						status: session.status,
+						paymentStatus: session.payment_status,
+						paid:
+							session.status === "complete" &&
+							session.payment_status === "paid",
+						customerEmail:
+							session.customer_details?.email ||
+							session.customer_email ||
+							null,
+						amountTotal: session.amount_total || 0,
+						currency: session.currency || "usd",
+						items,
+					},
+					200,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			} catch (error) {
+				console.error("Stripe session retrieval failed:", error);
+
+				const status =
+					error?.code === "resource_missing" ? 404 : 502;
+
+				return json(
+					{
+						ok: false,
+						error: "Could not verify Checkout Session",
+					},
+					status,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+		}
+
 		if(request.method === "POST" && url.pathname === "/checkout/session") {
 			let body;
 

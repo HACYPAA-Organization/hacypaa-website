@@ -677,6 +677,91 @@
   transform: translate(-50%, 0);
 }
 
+.checkout-dialog {
+  max-width: 760px;
+  width: min(94vw, 760px);
+}
+
+#checkout-status {
+  color: #5f5b53;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 42px clamp(24px, 5vw, 56px);
+}
+
+.checkout-confirmation {
+  padding: 48px clamp(24px, 5vw, 56px) 60px;
+}
+
+.checkout-confirmation h3 {
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: clamp(42px, 6vw, 68px);
+  letter-spacing: -0.025em;
+  line-height: 0.92;
+  margin: 18px 0 26px;
+  text-transform: uppercase;
+}
+
+.checkout-confirmation-message {
+  color: #5f5b53;
+  line-height: 1.65;
+  margin: 0 0 34px;
+}
+
+.checkout-confirmation-items {
+  border-top: 2px solid var(--ink);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkout-confirmation-items li {
+  align-items: center;
+  border-bottom: 1px solid var(--line-light);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding: 20px 0;
+}
+
+.checkout-confirmation-items li span {
+  font-weight: 700;
+}
+
+.checkout-confirmation-items li strong {
+  font-family: monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.checkout-confirmation-total {
+  align-items: center;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  font-family: monospace;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding: 24px;
+  text-transform: uppercase;
+}
+
+.checkout-confirmation-total strong {
+  font-size: 20px;
+}
+
+.checkout-confirmation .merch-button-red {
+  box-shadow: 5px 5px 0 var(--ink);
+  margin-top: 32px;
+}
+
+.checkout-confirmation .merch-button-red:hover,
+.checkout-confirmation .merch-button-red:focus-visible {
+  box-shadow: 7px 7px 0 var(--ink);
+}
+
 @media (max-width: 1100px) {
   .mobile-nav .mobile-cart-button {
     display: block;
@@ -795,6 +880,24 @@
   .cart-item-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+    .checkout-confirmation {
+    padding: 38px 22px 50px;
+  }
+
+  .checkout-confirmation h3 {
+    font-size: clamp(40px, 13vw, 56px);
+  }
+
+  .checkout-confirmation-items li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .checkout-confirmation .merch-button-red {
+    width: 100%;
   }
 }
 
