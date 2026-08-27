@@ -10,7 +10,33 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "ORDERS_DB",
+			"database_name": "hacypaa-orders",
+			"database_id": "0a58d01a-519f-4758-884a-7b16bb519bd4"
+		}
+	],
+
+	"queues": {
+		"producers": [
+			{
+				"binding": "FULFILLMENT_QUEUE",
+				"queue": "hacypaa-fulfillment"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "hacypaa-fulfillment",
+				"max_batch_size": 1,
+				"max_batch_timeout": 1,
+				"max_retries": 5,
+				"dead_letter_queue": "hacypaa-fulfillment-dlq",
+				"max_concurrency": 1
+			}
+		]
+	}
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

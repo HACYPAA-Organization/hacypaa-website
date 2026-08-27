@@ -2,7 +2,7 @@
     "use strict";
 
     const storageKey = "hacypaa-merch-cart-v2";
-    const checkoutApi = "http://127.0.0.1:8787";
+    const checkoutApi = "https://checkout-api.tgp-services.workers.dev";
     const stripePublishableKey =
     "pk_test_51U82LpM0AC70O1UBmLUALv7KZvdV8GvbUvTNJn9tJ9RMQmuOUX0VyOj69a5yGuojELAfpTlHVssYZJO9MGJQcsyw00jOVw0ENc";
 
@@ -213,6 +213,7 @@
     }
 
     async function openCheckout() {
+
         if (!readCart().length || checkoutInstance) {
             return;
         }

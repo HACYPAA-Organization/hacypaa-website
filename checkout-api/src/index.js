@@ -7,6 +7,11 @@ const ALLOWED_ORIGINS = new Set([
 	"https://www.hacypaa.us",
 ]);
 
+const PAID_CHECKOUT_EVENT_TYPES = new Set([
+	"checkout.session.completed",
+	"checkout.session.async_payment_succeeded",
+]);
+
 function getCorsHeaders(request) {
 	const origin = request.headers.get("Origin");
 
@@ -33,6 +38,598 @@ function json(data, status = 200, headers = {}) {
 	});
 }
 
+function buildOrderItems(lineItems) {
+	if (
+		!Array.isArray(lineItems?.data) ||
+		lineItems.data.length === 0 ||
+		lineItems.has_more
+	) {
+		throw new Error("Stripe returned incomplete line items");
+	}
+
+	return lineItems.data.map((lineItem) => {
+		const product = lineItem.price?.product;
+
+		if (
+			!product ||
+			typeof product === "string" ||
+			product.deleted
+		) {
+			throw new Error(
+				'Stripe Product was not expanded for ${lineItem.id}',
+			);
+		}
+
+		const printifyProductID =
+			product.metadata?.printify_product_id?.trim();
+
+		const printifyVariantID = Number.parseInt(
+			product.metadata?.printify_variant_id || "",
+			10,
+		);
+
+		if(
+			typeof lineItem.id !== "string" ||
+			!printifyProductID ||
+			!Number.isInteger(printifyVariantID) ||
+			printifyVariantID <= 0 ||
+			!Number.isInteger(lineItem.quantity) ||
+			lineItem.quantity < 1 ||
+			lineItem.quantity > 10 ||
+			!Number.isInteger(lineItem.price?.unit_amount) ||
+			lineItem.price.unit_amount <= 0 ||
+			!Number.isInteger(lineItem.amount_total) ||
+			lineItem.amount_total < 0
+		) {
+			throw new Error(
+				'Invalid trusted data for ${lineItem.id || "unknown line item"}',
+			);
+		}
+
+		return {
+			stripeLineItemID: lineItem.id,
+			printifyProductID,
+			printifyVariantID,
+			productTitle:
+				product.name?.trim() ||
+				lineItem.description?.trim() ||
+				"Unknown product",
+			variantTitle: null,
+			quantity: lineItem.quantity,
+			unitAmount: lineItem.price.unit_amount,
+			amountTotal: lineItem.amount_total,
+		};
+	});
+}
+
+function cleanText(value) {
+	return typeof value === "string" ? value.trim() : "";
+}
+
+function stripeObjectID(value) {
+	if (typeof value === "string") return value;
+
+	return cleanText(value?.id) || null;
+}
+
+function buildOrderRecord(event, session) {
+	const customer = session.customer_details;
+	const shipping = 
+		session.collected_information?.shipping_details;
+	const address = shipping?.address;
+
+	const currency = cleanText(session.currency).toLowerCase();
+	const country = cleanText(address?.country).toUpperCase();
+
+	const customerName = cleanText(customer?.name) || null;
+	const shippingName =
+		cleanText(shipping?.name) || customerName;
+
+	const amountSubtotal = session.amount_subtotal;
+	const amountShipping =
+		session.total_details?.amount_shipping ?? 0;
+	const amountTax =
+		session.total_details?.amount_tax ?? 0;
+	const amountDiscount =
+		session.total_details?.amount_discount ?? 0;
+	const amountTotal = session.amount_total;
+
+	const requiredText = [
+		cleanText(event.id),
+		cleanText(session.id),
+		currency,
+		cleanText(customer?.email),
+		shippingName,
+		cleanText(address?.line1),
+		cleanText(address?.city),
+		cleanText(address?.state),
+		cleanText(address?.postal_code),
+		country,
+	];
+
+	const amounts = [
+		amountSubtotal,
+		amountShipping,
+		amountTax,
+		amountDiscount,
+		amountTotal,
+	];
+
+	if (
+		requiredText.some((value) => !value) ||
+		currency.length !== 3 ||
+		country.length !== 2 ||
+		amounts.some(
+			(value) =>
+				!Number.isInteger(value) || value < 0,
+		) ||
+		amountTotal !==
+			amountSubtotal +
+				amountShipping +
+				amountTax -
+				amountDiscount ||
+		!Number.isInteger(event.created) ||
+		event.created <= 0 ||
+		typeof event.livemode !== "boolean" ||
+		typeof session.livemode !== "boolean" ||
+		event.livemode !== session.livemode ||
+		session.object !== "checkout.session" ||
+		session.mode !== "payment" ||
+		session.status !== "complete" ||
+		session.payment_status !== "paid" ||
+		session.metadata?.source !== "hacypaa_merch"
+	) {
+		throw new Error(
+			"Paid Checkout Session is incomplete or inconsistent",
+		);
+	}
+
+	return {
+		stripeEventID: event.id,
+		stripeEventType: event.type,
+		stripeObjectID: session.id,
+		livemode: event.livemode ? 1: 0,
+		stripeCreatedAt: event.created,
+
+		stripeSessionID: session.id,
+		stripePaymentIntentID:
+			stripeObjectID(session.payment_intent),
+		stripeCustomerID:
+			stripeObjectID(session.customer),
+		paymentStatus: "paid",
+		currency,
+
+		amountSubtotal,
+		amountShipping,
+		amountTax,
+		amountDiscount,
+		amountTotal,
+
+		customerEmail: cleanText(customer.email),
+		customerName,
+		customerPhone:
+			cleanText(customer.phone) || null,
+
+		shippingName,
+		shippingLine1: cleanText(address.line1),
+		shippingLine2:
+			cleanText(address.line2) || null,
+		shippingCity: cleanText(address.city),
+		shippingState: cleanText(address.state),
+		shippingPostalCode:
+			cleanText(address.postal_code),
+		shippingCountry: country,
+
+		paidAt: event.created,
+	}
+}
+
+async function storePaidOrder(db, order, items) {
+	if (!db) {
+		throw new Error("ORDERS_DB is not configured");
+	}
+
+	const findStoredOrder = () =>
+		db
+			.prepare(
+				`
+				SELECT id
+				FROM orders
+				WHERE stripe_event_id = ?
+					OR stripe_session_id = ?
+				LIMIT 1
+				`,
+			)
+			.bind(
+				order.stripeEventID,
+				order.stripeSessionID,
+			)
+			.first();
+
+	const existingOrder = await findStoredOrder();
+
+	if (existingOrder) {
+		return {
+			duplicate: true,
+			orderID: existingOrder.id,
+		};
+	}
+
+	const statements = [
+		db
+			.prepare(
+				`
+				INSERT INTO processed_stripe_events (
+					event_id,
+					event_type,
+					stripe_object_id,
+					livemode,
+					stripe_created_at
+				)
+				VALUES (?, ?, ?, ?, ?)
+				`,
+			)
+			.bind(
+				order.stripeEventID,
+				order.stripeEventType,
+				order.stripeObjectID,
+				order.livemode,
+				order.stripeCreatedAt,
+			),
+
+		db
+			.prepare(
+				`
+				INSERT INTO orders (
+					stripe_event_id,
+					stripe_session_id,
+					stripe_payment_intent_id,
+					stripe_customer_id,
+					livemode,
+					payment_status,
+					currency,
+					amount_subtotal,
+					amount_shipping,
+					amount_tax,
+					amount_discount,
+					amount_total,
+					customer_email,
+					customer_name,
+					customer_phone,
+					shipping_name,
+					shipping_line1,
+					shipping_line2,
+					shipping_city,
+					shipping_state,
+					shipping_postal_code,
+					shipping_country,
+					paid_at
+				)
+				VALUES (
+					?, ?, ?, ?, ?, ?, ?,
+					?, ?, ?, ?, ?,
+					?, ?, ?,
+					?, ?, ?, ?, ?, ?, ?,
+					?
+				)
+				`,
+			)
+			.bind(
+				order.stripeEventID,
+				order.stripeSessionID,
+				order.stripePaymentIntentID,
+				order.stripeCustomerID,
+				order.livemode,
+				order.paymentStatus,
+				order.currency,
+				order.amountSubtotal,
+				order.amountShipping,
+				order.amountTax,
+				order.amountDiscount,
+				order.amountTotal,
+				order.customerEmail,
+				order.customerName,
+				order.customerPhone,
+				order.shippingName,
+				order.shippingLine1,
+				order.shippingLine2,
+				order.shippingCity,
+				order.shippingState,
+				order.shippingPostalCode,
+				order.shippingCountry,
+				order.paidAt,
+			),
+	];
+
+	for (const item of items) {
+		statements.push(
+			db
+				.prepare(
+					`
+					
+					INSERT INTO order_items (
+						order_id,
+						stripe_line_item_id,
+						printify_product_id,
+						printify_variant_id,
+						product_title,
+						variant_title,
+						quantity,
+						unit_amount,
+						amount_total
+					)
+					VALUES (
+						(
+							SELECT id
+							FROM orders
+							WHERE stripe_session_id = ?
+							),
+							?, ?, ?, ?, ?, ?, ?, ?
+						)
+						`,		
+				)
+				.bind(
+					order.stripeSessionID,
+					item.stripeLineItemID,
+					item.printifyProductID,
+					item.printifyVariantID,
+					item.productTitle,
+					item.variantTitle,
+					item.quantity,
+					item.unitAmount,
+					item.amountTotal,
+				),
+		);
+	}
+
+	try {
+		const results = await db.batch(statements);
+
+		return {
+			duplicate: false,
+			orderID:
+			results[1]?.meta?.last_row_id || null,
+		};
+	} catch (error) {
+		// Another copy of the webhook may have won the race.
+		const racedOrder = await findStoredOrder();
+
+		if (racedOrder) {
+			return {
+				duplicat: true,
+				orderID: racedOrder.id,
+			};
+		}
+
+		throw error;
+	}
+}
+
+async function loadFulfillmentOrder(db, orderID) {
+	const order = await db
+		.prepare(
+			`
+				SELECT
+					id,
+					stripe_session_id,
+					customer_email,
+					customer_phone,
+					shipping_name,
+					shipping_line2,
+					shipping_city,
+					shipping_state,
+					shipping_postal_code,
+					shipping_country,
+					fulfillment_status,
+					printify_order_id
+				FROM orders
+				WHERE id = ?
+			`,
+		)
+		.bind(orderID)
+		.first();
+
+	if (!order) {
+		return null;
+	}
+
+	const itemResult = await db
+		.prepare(
+			`
+				SELECT
+					stripe_line_item_id,
+					printify_product_id,
+					printify_variant_id,
+					quantity
+				FROM order_items
+				WHERE order_id = ?
+				ORDER BY id
+			`,
+		)
+		.bind(orderID)
+		.all();
+
+	return {
+		order,
+		items: itemResult.results || [],
+	};
+}
+
+function buildPrintifyOrderPayload(fulfillmentOrder) {
+	const { order, items } = fulfillmentOrder;
+	const nameParts = order.shipping_name.trim().split(/\s+/);
+	const firstName = nameParts.shift();
+	const lastName = nameParts.join(" ") || firstName;
+
+	return {
+		external_id: order.stripe_session_id,
+		label: `HACYPAA-${order.id}`,
+		line_items: items.map((item) => ({
+				product_id: item.printify_product_id,
+				variant_id: item.printify_variant_id,
+				quantity: item.quantity,
+				external_id: item.stripe_line_item_id,
+		})),
+		shipping_method: 1,
+		send_shipping_notifications: true,
+		address_to: {
+			first_name: firstName,
+			last_name: lastName,
+			email: order.customer_email,
+			phone: order.customer_phone || "",
+			country: order.shipping_country,
+			address1: order.shipping_line1,
+			address2: order.shipping_line2 || "",
+			city: order.shipping_city,
+			zip: order.shipping_postal_code,
+		},
+	};
+}
+
+async function submitPrintifyOrder(
+	apiToken,
+	shopID,
+	payload,
+) {
+	const response = await fetch(
+		`https://api.printify.com/v1/shops/${encodeURIComponent(shopID)}/orders.json`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+				Accept: "application/json",
+			},
+			body: JSON.stringify(payload),
+		},
+	);
+
+	const responseText = await response.text();
+	let responseData = null;
+
+	try {
+		responseData = responseText
+			? JSON.parse(responseText)
+			: null;
+	} catch {
+		// Handled by the validation below.
+	}
+
+	if (!response.ok) {
+		const message =
+			typeof responseData?.message === "string"
+				? responseData.message
+				: `HTTP ${response.status}`;
+		throw new Error(`Printify rejected order: ${message}`);	
+	}
+
+	if (
+		!responseData ||
+		typeof responseData.id !== "string" ||
+		!responseData.id
+	) {
+		throw new Error(
+			"Printify response did not include an order ID",
+		);
+	}
+
+	return responseData;
+}
+
+async function claimOrderForFulfillment(db, orderID) {
+	const result = await db
+		.prepare(
+			`
+				UPDATE orders
+				SET
+					fulfillment_status = 'submitting',
+					fulfillment_attempts =
+						fulfillment_attempts + 1,
+					last_fulfillment_error = NULL,
+					updated_at = unixepoch()
+				WHERE id = ?
+					AND printify_order_id IS NULL
+					AND (
+						fulfillment_status IN (
+							'pending',
+							'failed'
+						)
+						OR (
+							fulfillment_status = 'submitting'
+							AND updated_at <= unixepoch() - 300
+						)
+					)
+				`,
+		)
+		.bind(orderID)
+		.run();
+
+	return result.meta.change === 1;
+}
+
+async function recordPrintSubmission(
+	db,
+	orderID,
+	printifyOrder,
+) {
+	const result = await db
+		.prepare(
+			`
+				UPDATE orders
+				SET
+					fulfillment_status = 'submitted',
+					printify_order_id = ?,
+					printify_status = ?,
+					printify_submitted_at = unixepoch(),
+					last_fulfillment_error = NULL,
+					updated_at = unixepoch()
+				WHERE id = ?
+					AND fulfillment_status = 'submitting'
+					AND printify_order_id IS NULL
+				`,
+		)
+		.bind(
+			printifyOrder.id,
+			printifyOrder.status || "pending",
+			orderID,
+		)
+		.run();
+
+	if (result.meta.changes !== 1) {
+		throw new Error(
+			"Could not record the Printify submission",
+		);
+	}
+}
+
+async function recordFulfillmentFailure(
+	db,
+	orderID,
+	error,
+) {
+	const message = (
+		error instanceof Error
+			? error.message
+			: String(error)
+	).slice(0, 1000);
+
+	await db
+		.prepare(
+			`
+				UPDATE orders
+				SET
+					fulfillment_status = 'failed'
+					last_fulfillment_error = ?,
+					updated_at = unixepoch()
+				WHERE id = ?
+					AND fulfillment_status = 'submitting'
+					AND printify_order_id IS NULL
+				`,
+		)
+		.bind(message, orderID)
+		.run();
+}
+
 export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
@@ -48,6 +645,267 @@ export default {
 				status: 204,
 				headers: corsHeaders,
 			});
+		}
+
+		if (
+			request.method === "POST" &&
+			url.pathname === "/stripe/webhook"
+		) {
+			const stripeSecretKey = env.STRIPE_SECRET_KEY?.trim();
+			const webhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim();
+
+			if (
+				!stripeSecretKey ||
+				!webhookSecret?.startsWith("whsec_")
+			) {
+				return json(
+					{
+						ok: false,
+						error: "Stripe webhook is not configured",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			const signature = request.headers.get("Stripe-Signature");
+
+			if (!signature) {
+				return json(
+					{
+						ok: false,
+						error: "Stripe signature is required",
+					},
+					400,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			const stripe = new Stripe(stripeSecretKey);
+			const rawBody = await request.text();
+			let event;
+
+			try {
+
+				event = await stripe.webhooks.constructEventAsync(
+					rawBody,
+					signature,
+					webhookSecret,
+				);
+			} catch (error) {
+				console.error("Stripe webhook verification failed", {
+					message:
+					error instanceof Error
+					? error.message
+					: String(error),
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Invalid Stripe webhook signature",
+					},
+					400,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			if (!PAID_CHECKOUT_EVENT_TYPES.has(event.type)) {
+				return json(
+					{ received: true, ignored: true },
+					200,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			const eventSession = event.data?.object;
+
+			if (
+				eventSession?.object !== "checkout.session" ||
+				typeof eventSession.id !== "string" ||
+				eventSession.metadata?.source !== "hacypaa_merch"
+			) {
+				console.log("Ignoring unrelated Checkout Session", {
+					eventId: event.id,
+					sessionId: eventSession?.id || null,
+				});
+
+				return json(
+					{ received: true, ignored: true },
+					200,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			let session;
+			let lineItems;
+
+			try {
+				[session, lineItems] = await Promise.all([
+					stripe.checkout.sessions.retrieve(eventSession.id),
+					stripe.checkout.sessions.listLineItems(
+						eventSession.id,
+						{
+							limit: 100,
+							expand: ["data.price.product"],
+						},
+					),
+				]);
+			} catch (error) {
+				console.error("Checkout Session retrieval failed", {
+					eventId: event.id,
+					sessionId: eventSession.id,
+					message:
+						error instanceof Error
+							? error.message
+							: String(error),
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Could not retrieve Checkout Session",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			if (session.payment_status !== "paid") {
+				console.log("Ignoring unpaid Checkout Session", {
+					eventId: event.id,
+					sessionId: session.id,
+					paymentStatus: session.payment_status,
+				});
+
+				return json(
+					{ received: true, ignored: true },
+					200,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			let orderRecord;
+			let orderItems;
+
+			try {
+				orderRecord = buildOrderRecord(event, session);
+				orderItems = buildOrderItems(lineItems);
+			} catch (error) {
+				console.error("Checkout order validation failed", {
+					eventId: event.id,
+					sessionId: session.id,
+					message:
+						error instanceof Error
+							? error.message
+							: String(error),
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Invalid Checkout order",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			let storageResult;
+
+			try {
+				storageResult = await storePaidOrder(
+					env.ORDERS_DB,
+					orderRecord,
+					orderItems,
+				);
+			} catch (error) {
+				console.error("Paid order storage failed", {
+					eventId: event.id,
+					sessionId: session.id,
+					message:
+						error instanceof Error
+							? error.message
+							: String(error),
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Could not store paid order",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			if (
+				!Number.isInteger(storageResult.orderID) ||
+				storageResult.orderID <= 0
+			) {
+				console.error("Paid order has no valid D1 ID", {
+					eventId: event.id,
+					sessionId: session.id,
+					orderID: storageResult.orderID,
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Paid order has no valid ID",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			try {
+				await env.FULFILLMENT_QUEUE.send({
+					orderID: storageResult.orderID,
+				});
+			} catch (error) {
+				console.error("Paid order queueing faild", {
+					eventId: event.id,
+					sessionId: session.id,
+					orderID: storageResult.orderID,
+					message:
+						error instanceof Error
+							? error.message
+							: String(error),
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Could not queue paid order",
+					},
+					500,
+					{ "Cache-Control": "no-store" },
+				);
+			}
+
+			console.log(
+				storageResult.duplicate
+					? "Duplicate paid order ignored"
+					: "Stored paid HACYPAA order",
+					{
+						eventId: event.id,
+						sessionId: session.id,
+						orderID: storageResult.orderID,
+						lineItemCount: orderItems.length,
+						amountTotal: orderRecord.amountTotal,
+						queued: !storageResult.duplicate,
+					},
+			);
+
+			return json(
+				{
+					received: true,
+					duplicate: storageResult.duplicate,
+				},
+				200,
+				{ "Cache-Control": "no-store" }
+			);
 		}
 
 		if (request.method === "GET" && url.pathname === "/health") {
@@ -404,7 +1262,6 @@ export default {
 			);
 
 			const lineItems = [];
-			const orderMetadata = [];
 
 			for (const item of requestedItems.values()) {
 				const product = productMap.get(item.productId);
@@ -436,15 +1293,15 @@ export default {
 						currency: "usd",
 						product_data: {
 							name: product.title || "Selected variant",
+							metadata: {
+								printify_product_id: item.productId,
+								printify_variant_id: item.variantId,
+							},
 						},
 						unit_amount: trustedPrice,
 					},
 					quantity: item.quantity,
 				});
-
-				orderMetadata.push(
-					item.productId + ":" + item.variantId + ":" + item.quantity,
-				);
 			}
 
 			const checkoutOrigin =
@@ -472,7 +1329,6 @@ export default {
 					metadata: {
 						source: "hacypaa_merch",
 						printify_shop_id: shopID,
-						items: orderMetadata.join("|"),
 					},
 				});
 
@@ -498,5 +1354,133 @@ export default {
 		}
 
 		return json({ error: "Not found"}, 404, corsHeaders);
+	},
+
+	async queue(batch, env) {
+		for (const message of batch.messages) {
+			const orderID = Number(message.body?.orderID);
+
+			if (!Number.isInteger(orderID) || orderID <= 0) {
+				console.error("Rejecting invalid fulfillment job", {
+					messageId: message.id,
+					body: message.body,
+				});
+
+				message.ack();
+				continue;
+			}
+
+			const fulfillmentOrder = await loadFulfillmentOrder(
+				env.ORDERS_DB,
+				orderID,
+			);
+
+			if (
+				!fulfillmentOrder ||
+				fulfillmentOrder.items.length === 0
+			) {
+				console.error("Fulfillment order could not be loaded", {
+					messageId: message.id,
+					orderID,
+				});
+
+				message.retry();
+				continue;
+			}
+
+			const { order } = fulfillmentOrder;
+
+			if (
+				order.printify_order_id ||
+				["submitted", "fulfilled", "canceled"].includes(
+					order.fulfillment_status,
+				)
+			) {
+				console.log("Fulfillment job already completed", {
+					messageId: message.id,
+					orderID,
+					fulfillmentStatus: order.fulfillment_status,
+				});
+				
+				message.ack();
+				continue;
+			}
+
+			const printifyToken =
+				env.PRINTIFY_API_TOKEN?.trim();
+			const printifyShopID =
+				env.PRINTIFY_SHOP_ID?.trim();
+
+			if (!printifyToken || !printifyShopID) {
+				console.error("Printify is not configured", {
+					messageId: message.id,
+					orderID,
+				});
+
+				message.retry({ delaySeconds: 60 });
+				continue;
+			}
+
+			const claimed = await claimOrderForFulfillment(
+				env.ORDERS_DB,
+				orderID,
+			);
+
+			if(!claimed) {
+				console.log("Fulfillment order is already claimed", {
+					messageId: message.id,
+					orderID,
+				});
+
+				message.retry({ delaySeconds: 60 });
+				continue;
+			}
+
+			try {
+				const printifyPayload =
+					buildPrintifyOrderPayload(fulfillmentOrder);
+				
+				const printifyOrder =
+					await submitPrintifyOrder(
+						printifyToken,
+						printifyShopID,
+						printifyPayload,
+					);
+				await recordPrintSubmission(
+					env.ORDERS_DB,
+					orderID,
+					printifyOrder,
+				);
+
+				console.log("Submitted paid order to Printify", {
+					messageId: message.id,
+					orderID,
+					printifyOrderID: printifyOrder.id,
+					printifyStatus:
+						printifyOrder.status || "pending",
+					itemCount:
+						fulfillmentOrder.items.length,
+				});
+
+				message.ack();
+			} catch (error) {
+				await recordFulfillmentFailure(
+					env.ORDERS_DB,
+					orderID,
+					error,
+				);
+
+				console.error("Printify fulfillment failed", {
+					messageId: message.id,
+					orderID,
+					message:
+						error instanceof Error
+							? error.message
+							: String(error),
+				});
+
+				message.retry()
+			}
+		}
 	},
 };
