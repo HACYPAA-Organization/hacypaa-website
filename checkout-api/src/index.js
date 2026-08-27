@@ -396,7 +396,7 @@ async function storePaidOrder(db, order, items) {
 
 		if (racedOrder) {
 			return {
-				duplicat: true,
+				duplicate: true,
 				orderID: racedOrder.id,
 			};
 		}
@@ -415,6 +415,7 @@ async function loadFulfillmentOrder(db, orderID) {
 					customer_email,
 					customer_phone,
 					shipping_name,
+					shipping_line1,
 					shipping_line2,
 					shipping_city,
 					shipping_state,
@@ -455,7 +456,7 @@ async function loadFulfillmentOrder(db, orderID) {
 	};
 }
 
-function buildPrintifyOrderPayload(fulfillmentOrder) {
+export function buildPrintifyOrderPayload(fulfillmentOrder) {
 	const { order, items } = fulfillmentOrder;
 	const nameParts = order.shipping_name.trim().split(/\s+/);
 	const firstName = nameParts.shift();
@@ -471,13 +472,14 @@ function buildPrintifyOrderPayload(fulfillmentOrder) {
 				external_id: item.stripe_line_item_id,
 		})),
 		shipping_method: 1,
-		send_shipping_notifications: true,
+		send_shipping_notification: true,
 		address_to: {
 			first_name: firstName,
 			last_name: lastName,
 			email: order.customer_email,
 			phone: order.customer_phone || "",
 			country: order.shipping_country,
+			region: order.shipping_state,
 			address1: order.shipping_line1,
 			address2: order.shipping_line2 || "",
 			city: order.shipping_city,
@@ -499,6 +501,7 @@ async function submitPrintifyOrder(
 				Authorization: `Bearer ${apiToken}`,
 				"Content-Type": "application/json",
 				Accept: "application/json",
+				"User-Agent": "HACYPAA Checkout API",
 			},
 			body: JSON.stringify(payload),
 		},
@@ -564,7 +567,7 @@ async function claimOrderForFulfillment(db, orderID) {
 		.bind(orderID)
 		.run();
 
-	return result.meta.change === 1;
+	return result.meta.changes === 1;
 }
 
 async function recordPrintSubmission(
@@ -618,7 +621,7 @@ async function recordFulfillmentFailure(
 			`
 				UPDATE orders
 				SET
-					fulfillment_status = 'failed'
+					fulfillment_status = 'failed',
 					last_fulfillment_error = ?,
 					updated_at = unixepoch()
 				WHERE id = ?
@@ -894,7 +897,7 @@ export default {
 						orderID: storageResult.orderID,
 						lineItemCount: orderItems.length,
 						amountTotal: orderRecord.amountTotal,
-						queued: !storageResult.duplicate,
+						queued: true,
 					},
 			);
 
