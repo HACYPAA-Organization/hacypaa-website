@@ -773,6 +773,24 @@ img {
   border-color: var(--line-light);
 }
 
+.info-card .status-pill-dark {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  transform-origin: left center;
+}
+
+.info-card .status-pill-dark:hover {
+  background-color: #b9dce8;
+  border-color: #6f9eae;
+  box-shadow: 0 4px 0 rgba(11, 11, 10, 0.18);
+  color: var(--ink);
+  transform: translateY(-2px) scale(1.03);
+}
+
 .service-section {
   align-items: flex-end;
   background: var(--ink);
