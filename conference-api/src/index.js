@@ -911,6 +911,41 @@ export default {
 			);
 		}
 
+		if (
+			request.method === "POST" &&
+			url.pathname === "/registrations"
+		) {
+			let body;
+
+			try {
+				body = await request.json();
+			} catch {
+				return json(
+					{
+						ok: false,
+						error: "Request body must be valid JSON",
+					},
+					400,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+
+			return json(
+				{
+					ok: false,
+					error: "Registration validation is not implemented",
+				},
+				501,
+				{
+					...corsHeaders,
+					"Cache-Control": "no-store",
+				},
+			);
+		}
+
 		if (request.method === "GET" && url.pathname === "/health") {
 			return json(
 				{

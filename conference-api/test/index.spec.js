@@ -606,4 +606,44 @@ describe("HACYPAA checkout API", () => {
 		expect(message.retry).toHaveBeenCalledOnce();
 		expect(message.ack).not.toHaveBeenCalled();
 	});
+
+	it("rejects invalid JSON during registration submission", async () => {
+		const response = await exports.default.fetch(
+			new Request("http://example.com/registrations", {
+				method: "POST",
+				headers: {
+					Origin: allowedOrigin,
+					"Content-Type": "applications/json",
+				},
+				body: "{",
+			}),
+		);
+
+		expect(response.status).toBe(400);
+
+		expect(await response.json()).toEqual({
+			ok: false,
+			error: "Request body must be valid JSON",
+		});
+	});
+
+		it("rejects incomplete registration information", async () => {
+		const response = await exports.default.fetch(
+			new Request("http://example.com/registrations", {
+				method: "POST",
+				headers: {
+					Origin: allowedOrigin,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+
+		expect(await response.json()).toEqual({
+			ok: false,
+			error: "Registration information is incomplete or invalid",
+		});
+	});
 });
