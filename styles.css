@@ -1974,29 +1974,70 @@ footer > p {
   font-size: 18px;
 }
 
+.location-value {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.location-address {
+  color: #77736a;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.location-address:hover,
+.location-address:focus-visible {
+  color: #0b0b0a;
+  text-decoration: underline;
+}
+
 .discord-widget-slot {
-  align-items: center;
   background: #0b0b0a;
   color: #f5efe3;
-  display: flex;
-  gap: 32px;
+  display: grid;
+  gap: clamp(40px, 6vw, 90px);
   grid-column: 1 / -1;
-  justify-content: space-between;
-  padding: 28px 32px;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  padding: clamp(32px, 5vw, 64px);
 }
 
-.discord-widget-slot strong {
+.discord-widget-copy {
+  align-self: center;
+  max-width: 560px;
+}
+
+.discord-widget-copy strong {
   display: block;
-  font-size: 20px;
-  margin-top: 6px;
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: clamp(44px, 5vw, 76px);
+  line-height: 0.9;
+  margin-top: 18px;
+  text-transform: uppercase;
 }
 
-.discord-widget-slot p {
-  margin: 0;
-  max-width: 440px;
+.discord-widget-copy p {
+  color: #aaa596;
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 26px 0 0;
+  max-width: 480px;
+}
+
+.discord-embed {
+  border: 0;
+  display: block;
+  justify-self: end;
+  max-width: 350px;
+  width: 100%;
 }
 
 @media (max-width: 900px) {
+  .discord-embed {
+    flex-basis: auto;
+    width: 100%;
+  }
   .committee-widget {
     grid-template-columns: 1fr;
   }
