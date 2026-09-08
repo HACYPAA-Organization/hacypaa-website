@@ -2085,3 +2085,83 @@ footer > p {
     min-height: calc(100vh-80px);
   }
 }
+
+/* Pre-registration */
+
+.prereg-section {
+  background: var(--paper);
+  color: var(--ink);
+  padding: clamp(32px, 6vw, 80px);
+}
+
+.prereg-section h1 {
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 400;
+  line-height: 1.1;
+  margin: 0 0 24px;
+  overflow-wrap: anywhere;
+}
+
+.prereg-section p {
+  max-width: 40rem;
+  line-height: 1.6;
+}
+
+.prereg-form {
+  display: grid;
+  gap: 24px;
+  max-width: 40rem;
+  margin-top: 32px;
+}
+
+.prereg-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.prereg-form input {
+  background: var(--white);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+  min-height: 48px;
+  min-width: 0;
+  padding: 12px;
+  width: 100%;
+}
+
+.prereg-form input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.prereg-form .button {
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font-size: 0.875rem;
+  justify-self: start;
+}
+
+.prereg-form .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.prereg-confirmation {
+  border-top: 2px solid var(--ink);
+  margin-top: 32px;
+  max-width: 40rem;
+  overflow-wrap: anywhere;
+  padding-top: 24px;
+}
+
+#prereg-feedback[data-state="error"] {
+  color: #a71329;
+}

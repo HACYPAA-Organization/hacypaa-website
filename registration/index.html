@@ -97,33 +97,79 @@
         </nav>
       </header>
 
-      <section class="interior-hero">
-        <div class="section-index light-index">
-          <span>07</span>
-          <p>Registration</p>
-        </div>
+      <section class="prereg-section" aria-labelledby="prereg-heading">
+          <p class="section-kicker">HACYPAA XI · Divine Paradox</p>
 
-        <div class="interior-hero-copy">
-          <p class="section-kicker light-kicker">Claim your place</p>
+          <h1 id="prereg-heading">Pre-registration</h1>
 
-          <h1>
-            Pre-registration<br />
-            <em>is open</em>
-          </h1>
-
-          <p class="interior-intro">
-            Complete the official HACYPAA pre-registration form to help the
-            committee prepare for a safe and successful conference.
+          <p>
+            Submit your details to receive a registration code. 
+            Your registration is confirmed after payment is verified.
           </p>
 
-          <a
-            class="button button-light registration-link"
-            href="https://docs.google.com/forms/d/e/1FAIpQLSf0v5E6PMSxJdbEb5NBM1v_oYDcZEfncKFdcAvWiZafkIV_Kg/viewform"
-            target="_blank"
-            rel="noopener noreferrer"
+          <p><strong>Demo only. Please use test details.</strong></p>
+
+          <form id="prereg-form" class="prereg-form" method="post">
+            <label>
+              First name
+              <input
+                type="text"
+                name="firstName"
+                autocomplete="given-name"
+                maxlength="100"
+                required
+              />
+            </label>
+
+            <label>
+              Last name
+              <input
+                type="text"
+                name="lastName"
+                autocomplete="family-name"
+                maxlength="100"
+                required
+              />
+            </label>
+
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                autocomplete="email"
+                maxlength="254"
+                required
+              />
+            </label>
+
+            <button
+              id="prereg-submit"
+              class="button"
+              type="submit"
+              disabled
+            >
+              Save registration
+            </button>
+          </form>
+
+          <p id="prereg-feedback" role="status"></p>
+
+          <section
+            id="prereg-confirmation"
+            class="prereg-confirmation"
+            aria-labelledby="prereg-confirmation-heading"
+            tabindex="-1"
+            hidden
           >
-            Pre-register now
-          </a>
+            <h2 id="prereg-confirmation-heading">Registration saved</h2>
+
+            <p>Your registration code:</p>
+            <p><strong id="prereg-code"></strong></p>
+
+            <p id="prereg-amount"></p>
+            <p id="prereg-payment-status">Payment has not been confirmed.</p>
+          </section>
         </div>
       </section>
 
@@ -219,5 +265,6 @@
     </main>
 
     <script src="/assets/js/script.js"></script>
+    <script src="/assets/js/preregistration.js"></script>
   </body>
 </html>

@@ -36,7 +36,7 @@ CREATE TABLE registrations (
             status IN (
                 'awaiting_payment',
                 'payment_reported',
-                'confirmed'<
+                'confirmed',
                 'payment_not_found',
                 'cancelled'
             )

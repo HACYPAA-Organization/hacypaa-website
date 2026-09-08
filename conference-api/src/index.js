@@ -633,6 +633,96 @@ async function recordFulfillmentFailure(
 		.run();
 }
 
+export async function storeRegistration(db, registration) {
+    if (!db) {
+        throw new Error("ORDERS_DB is not configured");
+    }
+
+    const registrationCode =
+        "HACXI-" +
+        crypto.randomUUID()
+            .replaceAll("-", "")
+            .slice(0, 12)
+            .toUpperCase();
+
+    const results = await db.batch([
+        db.prepare(`
+            INSERT INTO registrations (
+                registration_code, submission_key,
+                first_name, last_name, email,
+                amount_due_cents, currency, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'usd', 'awaiting_payment')
+            ON CONFLICT (submission_key) DO NOTHING
+        `).bind(
+            registrationCode,
+            registration.submissionKey,
+            registration.firstName,
+            registration.lastName,
+            registration.email,
+            registration.amountDueCents,
+        ),
+
+        db.prepare(`
+            INSERT INTO registration_events (
+                registration_id, event_type, actor_type, new_status
+            )
+            SELECT
+                id,
+                'registration_created',
+                'registrant',
+                'awaiting_payment'
+            FROM registrations
+            WHERE registration_code = ? AND submission_key = ?
+        `).bind(
+            registrationCode,
+            registration.submissionKey,
+        ),
+
+        db.prepare(`
+            SELECT
+                registration_code AS registrationCode,
+                status,
+                amount_due_cents AS amountDueCents,
+                currency,
+                first_name AS firstName,
+                last_name AS lastName,
+                email
+            FROM registrations
+            WHERE submission_key = ?
+        `).bind(registration.submissionKey),
+    ]);
+
+    const saved = results[2]?.results?.[0];
+
+    if (!saved) {
+        throw new Error("Could not read the saved registration");
+    }
+
+    if (
+        saved.firstName !== registration.firstName ||
+        saved.lastName !== registration.lastName ||
+        saved.email !== registration.email
+    ) {
+        const error = new Error(
+            "Submission key belongs to another registration",
+        );
+
+        error.code = "SUBMISSION_KEY_REUSED";
+        throw error;
+    }
+
+    return {
+        duplicate: results[0].meta.changes === 0,
+        registration: {
+            registrationCode: saved.registrationCode,
+            status: saved.status,
+            amountDueCents: saved.amountDueCents,
+            currency: saved.currency,
+        },
+    };
+}
+
 export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
@@ -933,17 +1023,114 @@ export default {
 				);
 			}
 
-			return json(
-				{
-					ok: false,
-					error: "Registration validation is not implemented",
-				},
-				501,
-				{
-					...corsHeaders,
-					"Cache-Control": "no-store",
-				},
-			);
+			const firstName = cleanText(body?.firstName);
+			const lastName = cleanText(body?.lastName);
+			const email = cleanText(body?.email).toLowerCase();
+
+			if (
+				!body ||
+				typeof body !== "object" ||
+				Array.isArray(body) ||
+				!firstName ||
+				firstName.length > 100 ||
+				!lastName ||
+				lastName.length > 100 ||
+				email.length > 254 ||
+				!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+			) {
+				return json(
+					{
+						ok: false,
+						error: "Registration information is incomplete or invalid",
+					},
+					400,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+
+			const responseHeaders = {
+				...corsHeaders,
+				"Cache-Control": "no-store",
+			};
+
+			const submissionKey = cleanText(body?.submissionKey).toLowerCase();
+			const validSubmissionKey =
+				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+			if (!validSubmissionKey.test(submissionKey)) {
+				return json(
+					{
+						ok: false,
+						error: "A valid submission key is required",
+					},
+					400,
+					responseHeadersk,
+				);
+			}
+
+			const priceText = String(env.PREREG_PRICE_CENTS ?? "").trim();
+			const amountDueCents = Number(priceText);
+
+			if (
+				!/^\d+$/.test(priceText) ||
+				!Number.isSafeInteger(amountDueCents) ||
+				amountDueCents <= 0 ||
+				!env.ORDERS_DB
+			) {
+				return json(
+					{
+						ok: false,
+						error: "Registration is temporarily unavailable",
+					},
+					503,
+					responseHeaders,
+				);
+			}
+
+			try {
+				const result = await storeRegistration(env.ORDERS_DB, {
+					submissionKey,
+					firstName,
+					lastName,
+					email,
+					amountDueCents,
+				});
+
+				return json(
+					{ ok: true, ...result },
+					result.duplicate ? 200 : 201,
+					responseHeaders,
+				);
+			} catch (error) {
+				if (error?.code === "SUBMISSION_KEY_REUSED") {
+					return json(
+						{
+							ok: false,
+							error: "Submission key was already used for a different details",
+						},
+						409,
+						responseHeaders,
+					);
+				}
+
+				console.error("Registration storage failed", {
+					name: error?.name,
+					message: error?.message,
+					cause: error?.cause?.message,
+				});
+
+				return json(
+					{
+						ok: false,
+						error: "Could not save registration. Retry the same submission.",
+					},
+					503,
+					responseHeaders,
+				);
+			}
 		}
 
 		if (request.method === "GET" && url.pathname === "/health") {
