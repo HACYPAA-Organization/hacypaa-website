@@ -169,6 +169,47 @@
 
             <p id="prereg-amount"></p>
             <p id="prereg-payment-status">Payment has not been confirmed.</p>
+
+            <form id="payment-report-form" class="prereg-form">
+              <label>
+                Payment method
+                <select name="paymentMethod" required>
+                  <option value="">Choose a method</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="cash_app">Cash App</option>
+                </select>
+              </label>
+
+              <label>
+                Payment username or sender name
+                <input
+                  type="text"
+                  name="paymentSenderHandle"
+                  maxlength="100"
+                  required
+                />
+              </label>
+
+              <label>
+                Payment reference or note
+                <input
+                  type="text"
+                  name="paymentReference"
+                  maxlength="200"
+                />
+              </label>
+
+              <button
+                id="payment-report-submit"
+                class="button"
+                type="submit"
+                disabled
+              >
+                Report Payment
+              </button>
+            </form>
+
+            <p id="payment-feedback" role="status"></p>
           </section>
         </div>
       </section>

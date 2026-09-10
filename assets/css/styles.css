@@ -2165,3 +2165,23 @@ footer > p {
 #prereg-feedback[data-state="error"] {
   color: #a71329;
 }
+
+.prereg-form select {
+  background: var(--white);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  min-height: 48px;
+  padding: 12px;
+  width: 100%;
+}
+
+.prereg-form select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+#payment-feedback[data-state="error"] {
+  color: #a71329;
+}

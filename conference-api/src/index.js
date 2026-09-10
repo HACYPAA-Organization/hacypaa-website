@@ -723,6 +723,180 @@ export async function storeRegistration(db, registration) {
     };
 }
 
+export async function handlePaymentReport(request, env, corsHeaders) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{ ok: false, error: "Request body must be valid JSON" },
+			400,
+			headers,
+		);
+	}
+
+	const payment = {
+		registrationCode: cleanText(body?.registrationCode).toUpperCase(),
+		submissionKey: cleanText(body?.submissionKey).toLowerCase(),
+		paymentMethod: cleanText(body?.paymentMethod).toLowerCase(),
+		paymentSenderHandle: cleanText(body?.paymentSenderHandle),
+		paymentReference: cleanText(body?.paymentReference) || null,
+	};
+
+	const uuidPattern = 
+		/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+	if (
+		!/^HACXI-[0-9A-F]{12}$/.test(payment.registrationCode) ||
+        !uuidPattern.test(payment.submissionKey) ||
+        !["venmo", "cash_app"].includes(payment.paymentMethod) ||
+        !payment.paymentSenderHandle ||
+        payment.paymentSenderHandle.length > 100 ||
+        (payment.paymentReference?.length || 0) > 200 ||
+		(
+			body?.paymentReference != null &&
+			typeof body.paymentReference !== "string"
+		)
+	) {
+		return json(
+			{ok: false, error: "Payment report is incomplete or invalid" },
+			400,
+			headers,
+		);
+	}
+
+	const db = env.ORDERS_DB;
+
+	if (!db) {
+		return json(
+			{ ok: false, error: "Payment reporting is temporarily unavailable" },
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const details = JSON.stringify({
+			paymentMethod: payment.paymentMethod,
+			paymentSenderHandle: payment.paymentSenderHandle,
+			paymentReference: payment.paymentReference,
+		});
+
+		const results = await db.batch([
+			db.prepare(`
+				INSERT INTO registration_events (
+					registration_id, event_type, actor_type,
+					previous_status, new_status, details_json
+				)
+				SELECT id, 'payment_reported', 'registrant',
+					status, 'payment_reported', ?
+					FROM registrations
+					WHERE registration_code = ? AND submission_key = ?
+					AND status IN ('awaiting_payment', 'payment_not_found')
+			`).bind(
+				details,
+				payment.registrationCode,
+				payment.submissionKey,
+			),
+
+			db.prepare(`
+				UPDATE registrations
+				SET status = 'payment_reported',
+					payment_method = ?,
+					payment_sender_handle = ?,
+					payment_reference = ?,
+					payment_reported_at = unixepoch(),
+					updated_at = unixepoch()
+				WHERE registration_code = ? AND submission_key = ?
+					AND status IN ('awaiting_payment', 'payment_not_found')
+			`).bind(
+				payment.paymentMethod,
+				payment.paymentSenderHandle,
+				payment.paymentReference,
+				payment.registrationCode,
+				payment.submissionKey,
+			),
+
+			db.prepare(`
+				SELECT 
+					registration_code AS registrationCode,
+					status, 
+					payment_method AS paymentMethod,
+					payment_sender_handle AS paymentSenderHandle,
+					payment_reference AS paymentReference,
+					payment_reported_at AS paymentReportedAt
+				FROM registrations
+				WHERE registration_code = ? AND submission_key = ?
+				`).bind(
+					payment.registrationCode,
+					payment.submissionKey,
+				),
+		]);
+
+		const saved = results[2]?.results?.[0];
+
+		if (!saved) {
+			return json(
+				{ ok: false, error: "Registration not found" },
+				404,
+				headers,
+			);
+		}
+
+		if (
+			saved.status !== "payment_reported" ||
+			saved.paymentMethod !== payment.paymentMethod ||
+			saved.paymentSenderHandle !== payment.paymentSenderHandle ||
+			saved.paymentReference !== payment.paymentReference
+		) {
+			return json(
+				{
+					ok: false,
+					error: "This registration cannot accept that report. Contact registration for corrections.",
+				},
+				409,
+				headers,
+			);
+		}
+
+		return json(
+			{
+				ok: true,
+				duplicate: results[1].meta.changes === 0,
+				registration: {
+					registrationCode: saved.registrationCode,
+					status: saved.status,
+					paymentMethod: saved.paymentMethod,
+					paymentReportAt: saved.paymentReportAt,
+				},
+			},
+			200,
+			headers,
+		);
+	} catch (error) {
+		console.error("Payment report failed", {
+			name: error?.name,
+			message: error?.message,
+			cause: error?.cause?.message,
+		});
+
+		return json(
+			{
+				ok: false,
+				error: "Could not record payment report. Retry the same details."
+			},
+			503,
+			headers,
+		);
+	}
+}
+
 export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
@@ -999,6 +1173,14 @@ export default {
 				200,
 				{ "Cache-Control": "no-store" }
 			);
+		}
+
+		if (
+			request.method === "POST" &&
+			url.pathname === "/registrations/payment-report"
+		) {
+			return handlePaymentReport(request, env, corsHeaders);
+			console.log("raw payment body:", JSON.stringify(body, null, 2));
 		}
 
 		if (

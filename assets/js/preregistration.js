@@ -12,6 +12,10 @@
     const amount = document.querySelector("#prereg-amount");
     const paymentStatus = document.querySelector("#prereg-payment-status");
     const inputs = form.querySelectorAll("input");
+    const paymentForm = document.querySelector("#payment-report-form");
+    const paymentButton = document.querySelector("#payment-report-submit");
+    const paymentFeedback = document.querySelector("#payment-feedback");
+    const paymentInputs = paymentForm.querySelectorAll("input, select");
 
     const statuses = {
         awaiting_payment: "Payment has not been confirmed.",
@@ -24,6 +28,10 @@
     let submission = null;
     let busy = false;
     let completed = false;
+    let savedRegistration = null;
+    let paymentReport = null;
+    let paymentBusy = false;
+    let paymentCompleted = false;
 
     form.addEventListener("submit", async function (event) {
         event.preventDefault();
@@ -103,11 +111,13 @@
             code.textContent = registration.registrationCode;
             amount.textContent = "Registration fee: " + fee;
             paymentStatus.textContent = statuses[registration.status];
+            savedRegistration = registration;
 
             feedback.textContent = "";
             form.style.display = "none";
             confirmation.hidden = false;
             completed = true;
+            paymentButton.disabled = false;
             confirmation.focus();
         } catch (error) {
             feedback.dataset.state = "error";
@@ -129,6 +139,114 @@
                 : submission
                     ? "Retry registration"
                     : "Save registration";
+        }
+    });
+
+    paymentForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        if (
+            paymentBusy ||
+            paymentCompleted ||
+            !savedRegistration ||
+            !submission ||
+            !paymentForm.reportValidity()
+        ) {
+            return;
+        }
+
+        if (!paymentReport) {
+            const fields = new FormData(paymentForm);
+
+            paymentReport = {
+                registrationCode: savedRegistration.registrationCode,
+                submissionKey: submission.submissionKey,
+                paymentMethod: fields.get("paymentMethod"),
+                paymentSenderHandle: String(
+                    fields.get("paymentSenderHandle") || "",
+                ).trim(),
+                paymentReference: String(
+                    fields.get("paymentReference") || "",
+                ).trim(),
+            };
+        }
+
+        paymentBusy = true;
+        paymentButton.disabled = true;
+        paymentButton.textContent = "Reporting...";
+
+        paymentInputs.forEach((input) => {
+            input.disabled = true;
+        });
+
+        paymentFeedback.dataset.state = "pending";
+        paymentFeedback.textContent = "Recording your payment report...";
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
+        try {
+            const response = await fetch(
+                apiBase + "/registrations/payment-report",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(paymentReport),
+                    signal: controller.signal,
+                },
+            );
+
+            const data = await response.json().catch(() => null);
+
+            if (!response.ok || data?.ok !== true) {
+                if (response.status === 400) {
+                    paymentReport = null;
+
+                    paymentInputs.forEach((input) => {
+                        input.disabled = false;
+                    });
+                }
+
+                throw new Error(
+                    data?.error || "Could not record the payment report.",
+                );
+            }
+
+            if (data.registration?.status !== "payment_reported") {
+                throw new Error(
+                    "The server returned an incomplete payment report.",
+                );
+            }
+
+            paymentStatus.textContent = statuses.payment_reported;
+            paymentForm.style.display = "none";
+            paymentFeedback.dataset.state = "success";
+            paymentFeedback.textContent =
+                "Payment reported. The registration team still needs to verify it.";
+            paymentCompleted = true;
+        } catch (error) {
+            paymentFeedback.dataset.state = "error";
+
+            paymentFeedback.textContent = 
+                (error.name === "AboutError"
+                    ? "The request tiemd out."
+                    : error.message ||
+                        "Could not record the payment report.") +
+                (paymentReport
+                    ? " Keep this page open and retry."
+                    : " Check the payment details.");
+        } finally {
+            clearTimeout(timer);
+            paymentBusy = false;
+            paymentButton.disabled = paymentCompleted;
+
+            paymentButton.textContent = paymentCompleted
+                ? "Payment reported"
+                : paymentReport
+                    ? "Retry payment report"
+                    : "Perport payment";
         }
     });
 
