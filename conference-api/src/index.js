@@ -16,8 +16,8 @@ function getCorsHeaders(request) {
 	const origin = request.headers.get("Origin");
 
 	const headers = {
-		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type",
+		"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type, Stripe-Signature, Authorization",
 		Vary: "Origin",
 	};
 
@@ -633,6 +633,109 @@ async function recordFulfillmentFailure(
 		.run();
 }
 
+function createPaymentAccessToken() {
+	const bytes = new Uint8Array(32);
+
+	crypto.getRandomValues(bytes);
+
+	return Array.from(
+		bytes,
+		(byte) => byte.toString(16).padStart(2, "0"),
+	).join("");
+}
+
+async function hashPaymentAccessToken(token) {
+	const encoded = new TextEncoder().encode(token);
+
+	const digest = await crypto.subtle.digest(
+		"SHA-256",
+		encoded,
+	);
+
+	return Array.from(
+		new Uint8Array(digest),
+		(byte) => byte.toString(16).padStart(2, "0"),
+	).join("");
+}
+
+async function handlePaymentLinkLookup(
+	request,
+	env,
+	corsHeaders,
+) {
+	const url = new URL(request.url);
+
+	const token = String(
+		url.searchParams.get("token") || "",
+	).trim();
+
+	if (token.length !== 64) {
+		return Response.json(
+			{
+				ok: false,
+				error: "Invalid payment link.",
+			},
+			{
+				status: 400,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	const tokenHash = await hashPaymentAccessToken(token);
+
+	const registration = await env.ORDERS_DB.prepare(
+		`
+			SELECT
+				registration_code AS registrationCode,
+				first_name AS firstName,
+				last_name AS lastName,
+				status,
+				amount_due_cents AS amountDueCents,
+				currency
+			FROM registrations
+			WHERE PAYMENT_ACCESS_TOKEN_HASH = ?
+			LIMIT 1
+		`,
+	)
+		.bind(tokenHash)
+		.first();
+
+	if (!registration) {
+		return Response.json(
+			{
+				ok: false,
+				error:
+					"This payment link is invalid or has expired.",
+			},
+			{
+				status: 404,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	if (registration.status === "cancelled") {
+		return Response.json(
+			{
+				ok: false,
+				error:
+					"This registration has been cancelled.",
+			},
+		);
+	}
+
+	return Response.json(
+		{
+			ok: true,
+			registration,
+		},
+		{
+			headers: corsHeaders,
+		},
+	);
+}
+
 export async function storeRegistration(db, registration) {
     if (!db) {
         throw new Error("ORDERS_DB is not configured");
@@ -721,6 +824,18 @@ export async function storeRegistration(db, registration) {
             currency: saved.currency,
         },
     };
+}
+
+function isPreregAdmin(request, env) {
+	const expectedToken = cleanText(env.PREREG_ADMIN_TOKEN);
+	const authorization = cleanText(
+		request.headers.get("Authorization"),
+	);
+
+	return(
+		Boolean(expectedToken) &&
+		authorization === `Bearer ${expectedToken}`
+	);
 }
 
 export async function handlePaymentReport(request, env, corsHeaders) {
@@ -897,6 +1012,203 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 	}
 }
 
+export async function handleAdminRegistrations(
+	request,
+	env,
+	corsHeaders,
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	if (!isPreregAdmin(request,env)) {
+		return json(
+			{
+				ok: false,
+				error: "Unauthorized",
+			},
+			401,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{
+				ok: false,
+				error: "Registration records are temporarily unavailable",
+			},
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const result = await env.ORDERS_DB.prepare(`
+			SELECT
+				registration_code AS registrationCode,
+				first_name AS firstName,
+				last_name AS lastName,
+				email,
+				status,
+				amount_due_cents AS amountDueCents,
+				currency,
+				payment_method AS paymentMethod,
+				payment_sender_handle AS  paymentSenderHandle,
+				payment_reference AS paymentReference,
+				payment_reported_at AS paymentReportedAt,
+				confirmed_at AS  confirmedAt,
+				created_at AS  createdAt,
+				updated_at AS updatedAt
+			FROM registrations
+			ORDER BY created_at DESC, id DESC
+			LIMIT 500
+	`).all();
+
+	return json(
+		{
+			ok: true,
+			registrations: result.results || [],
+		},
+		200,
+		headers,
+	);
+	} catch (error) {
+		console.error("Admin registration list failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{
+				ok: false,
+				error: "Could not load registration records",
+			},
+			503,
+			headers,
+		)
+	}
+}
+
+async function handleAdminRegistrationStatus(
+	request,
+	env,
+	corsHeaders,
+) {
+	if (!isPreregAdmin(request, env)) {
+		return Response.json(
+			{
+				ok: false,
+				error: "Unathorized",
+			},
+			{
+				status: 401,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return Response.json(
+			{
+				ok: false,
+				error: "Request body must be valid JSON.",
+			},
+			{
+				status: 400,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	const registrationCode = String(
+		body?.registrationCode || "",
+	)
+		.trim()
+		.toUpperCase();
+
+	const nextStatus = String(body?.status || "").trim();
+
+	const allowedStatuses = new Set ([
+		"awaiting_payment",
+		"payment_reported",
+		"confirmed",
+		"payment_not_found",
+		"cancelled",
+	]);
+
+	if (
+		!registrationCode ||
+		!allowedStatuses.has(nextStatus)
+	) {
+		return Response.json(
+			{
+				ok: false,
+				error: "Invalid registration code or status.",
+			},
+			{
+				status: 400,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const confirmedAt =
+		nextStatus === "confirmed" ? now : null;
+
+	const result = await env.ORDERS_DB.prepare(
+		`
+			UPDATE registrations
+			SET
+				status = ?,
+				confirmed_at = ?,
+				updated_at = ?
+			WHERE registration_code = ?
+		`,
+	)
+		.bind(
+			nextStatus,
+			confirmedAt,
+			now,
+			registrationCode,
+		)
+		.run();
+
+	if (!result.meta?.changes) {
+		return Response.json(
+			{
+				ok: false,
+				error: "REgistration not found.",
+			},
+			{
+				status: 404,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	return Response.json(
+		{
+			ok: true,
+			registration: {
+				registrationCode,
+				status: nextStatus,
+				confirmedAt,
+				updatedAt: now,
+			},
+		},
+		{
+			headers: corsHeaders,
+		},
+	);
+}
+
 export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
@@ -912,6 +1224,17 @@ export default {
 				status: 204,
 				headers: corsHeaders,
 			});
+		}
+
+		if (
+			request.method === "GET" &&
+			url.pathname === "/registrations/payment-link"
+		) {
+			return handlePaymentLinkLookup(
+				request,
+				env,
+				corsHeaders,
+			);
 		}
 
 		if (
@@ -1176,11 +1499,33 @@ export default {
 		}
 
 		if (
+			request.method === "GET" &&
+			url.pathname === "/admin/registrations"
+		) {
+			return handleAdminRegistrations(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
+			request.method === "PATCH" &&
+			url.pathname === "/admin/registrations/status"
+		) {
+			return handleAdminRegistrationStatus(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+		
+
+		if (
 			request.method === "POST" &&
 			url.pathname === "/registrations/payment-report"
 		) {
 			return handlePaymentReport(request, env, corsHeaders);
-			console.log("raw payment body:", JSON.stringify(body, null, 2));
 		}
 
 		if (

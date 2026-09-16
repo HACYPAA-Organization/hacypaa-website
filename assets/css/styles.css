@@ -2185,3 +2185,161 @@ footer > p {
 #payment-feedback[data-state="error"] {
   color: #a71329;
 }
+/* Registration admin dashboard */
+
+.admin-shell {
+    width: min(100% - 2rem, 90rem);
+    max-width: 90rem;
+}
+
+#admin-login-form {
+    max-width: 32rem;
+    margin-top: 2rem;
+}
+
+.admin-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.admin-toolbar h2 {
+    margin: 0;
+}
+
+.admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+#admin-summary {
+    margin: 1.5rem 0 0.5rem;
+    color: #f5efe3;
+    font-weight: 700;
+}
+
+#admin-feedback {
+    min-height: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+#admin-feedback[data-state="success"] {
+    color: #8ed6a0;
+}
+
+#admin-feedback[data-state="error"] {
+    color: #ff6b76;
+}
+
+#admin-feedback[data-state="pending"] {
+    color: #c8c2b7;
+}
+
+.admin-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid rgba(245, 239, 227, 0.25);
+    background: #11110f;
+}
+
+.admin-table {
+    width: 100%;
+    min-width: 65rem;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 1rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(245, 239, 227, 0.16);
+}
+
+.admin-table th {
+    background: #1a1916;
+    color: #f5efe3;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.admin-table tbody tr {
+    transition: background-color 150ms ease;
+}
+
+.admin-table tbody tr:hover {
+    background: rgba(211, 19, 48, 0.1);
+}
+
+.admin-table td:nth-child(2) {
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.admin-table td small {
+    color: #aaa59c;
+    line-height: 1.8;
+}
+
+#admin-empty {
+    padding: 2rem;
+    text-align: center;
+    border: 1px solid rgba(245, 239, 227, 0.25);
+}
+
+@media (max-width: 700px) {
+    .admin-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .admin-actions {
+        width: 100%;
+    }
+
+    .admin-actions .button {
+        flex: 1;
+    }
+}
+
+.admin-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 12rem;
+}
+
+.admin-row-button {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: #f5efe3;
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-row-button[data-tone="success"] {
+    color: #8ed6a0;
+}
+
+.admin-row-button[data-tone="danger"] {
+    color: #ff6b76;
+}
+
+.admin-row-button:hover {
+    background: rgba(245, 239, 227, 0.1);
+}
+
+.admin-row-button:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta
+      name="description"
+      content="Pre-register for HACYPAA 2027 and help the committee plan the conference."
+    />
+
+    <title>Registration Dashboard | HACYPAA — Divine Paradox</title>
+
+    <link rel="canonical" href="https://hacypaa.us/registration/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HACYPAA" />
+    <meta property="og:title" content="Registration | HACYPAA - Divine Paradox" />
+    <meta
+      property="og:description"
+      content="Pre-register for HACYPAA XI and help the committee plan the conference."
+    />
+    <meta property="og:url" content="https://hacypaa.us/registration/" />
+    <meta
+      property="og:image"
+      content="https://hacypaa.us/assets/images/social-card.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="HACYPAA XI Divine Paradox 2027"
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Registration | HACYPAA - Divine Paradox" />
+    <meta
+      name="twitter:description"
+      content="Pre-register for HACYPAA XI and help the committee plan the conference."
+    />
+    <meta
+      name="twitter:image"
+      content="https://hacypaa.us/assets/images/social-card.png"
+    />
+
+    <meta name="robots" content="noindex, nofollow">
+
+
+    <link rel="icon" href="/assets/images/FAVICON.png" type="image/png" />
+
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+
+  <body>
+    <main id="main-content">
+      <section class="section">
+        <div class="shell admin-shell">
+          <p class="eyevrow">HACYPAA XI · DIVINE PARADOX</p>
+
+          <h1>Registration dashboard</h1>
+
+          <p>
+              Review preregistrations and reported payments.
+          </p>
+
+          <form id="admin-login-form" class="prereg-form">
+            <label for="admin-token">
+                Coordinator access token
+            </label>
+
+            <input
+              id="admin-token"
+              name="adminToken"
+              type="password"
+              autocomplete="off"
+              required
+            >
+
+            <button
+              id="admin-login-submit"
+              class="button"
+              type="submit"
+            >
+              Open dashboard
+            </button>
+          </form>
+
+          <p
+            id="admin-login-feedback"
+            role="status"
+          ></p>
+
+          <section id="admin-dashboard" hidden>
+            <div class="admin-toolbar">
+              <h2>Registrations</h2>
+
+              <div class="admin-actions">
+                <button
+                  id="admin-refresh"
+                  class="button"
+                  type="button"
+                >
+                    Refresh
+                </button>
+
+                <button
+                  id="admin-logout"
+                  class="button"
+                  type="button"
+                >
+                  Lock dashboard
+                </button>
+              </div>
+            </div>
+
+            <p id="admin-summary"></p>
+
+            <p
+              id="admin-feedback"
+              role="status"
+            ></p>
+
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Attendee</th>
+                    <th scope="col">Code</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Payment</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody id="registration-rows"></tbody>
+              </table>
+            </div>
+
+            <p id="admin-empty" hidden>
+              No registrations found.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/assets/js/script.js"></script>
+    <script 
+      src="../assets/js/preregistration-admin.js"
+      defer
+      ></script>
+  </body>
+</html>
