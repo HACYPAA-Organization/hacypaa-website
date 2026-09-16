@@ -633,6 +633,23 @@ async function recordFulfillmentFailure(
 		.run();
 }
 
+function buildPaymentUrl(env, token) {
+	if (!token) {
+		return null;
+	}
+
+	const siteUrl = String(
+		env.PUBLIC_SITE_URL ||
+		"https://hacypaa.us",
+	).replace(/\/+$/, "");
+
+	return (
+		siteUrl +
+		"/payment/?token=" +
+		encodeURIComponent(token)
+	);
+}
+
 function createPaymentAccessToken() {
 	const bytes = new Uint8Array(32);
 
@@ -657,6 +674,7 @@ async function hashPaymentAccessToken(token) {
 		(byte) => byte.toString(16).padStart(2, "0"),
 	).join("");
 }
+
 
 async function handlePaymentLinkLookup(
 	request,
@@ -747,15 +765,24 @@ export async function storeRegistration(db, registration) {
             .replaceAll("-", "")
             .slice(0, 12)
             .toUpperCase();
+	
+	const paymentAccessToken =
+		createPaymentAccessToken();
+	
+	const paymentAccessTokenHash =
+		await hashPaymentAccessToken(
+				paymentAccessToken,
+		);
 
     const results = await db.batch([
         db.prepare(`
             INSERT INTO registrations (
                 registration_code, submission_key,
                 first_name, last_name, email,
-                amount_due_cents, currency, status
+                amount_due_cents, currency, status,
+				payment_access_token_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'usd', 'awaiting_payment')
+            VALUES (?, ?, ?, ?, ?, ?, 'usd', 'awaiting_payment', ?)
             ON CONFLICT (submission_key) DO NOTHING
         `).bind(
             registrationCode,
@@ -764,6 +791,7 @@ export async function storeRegistration(db, registration) {
             registration.lastName,
             registration.email,
             registration.amountDueCents,
+			paymentAccessTokenHash,
         ),
 
         db.prepare(`
@@ -776,7 +804,7 @@ export async function storeRegistration(db, registration) {
                 'registrant',
                 'awaiting_payment'
             FROM registrations
-            WHERE registration_code = ? AND submission_key = ?
+            WHERE payment_access_token_hash = ? AND submission_key = ?
         `).bind(
             registrationCode,
             registration.submissionKey,
@@ -815,8 +843,17 @@ export async function storeRegistration(db, registration) {
         throw error;
     }
 
+	const duplicate =
+		results[0].meta.changes === 0;
+
     return {
-        duplicate: results[0].meta.changes === 0,
+        duplicate,
+
+		paymentAccessToken:
+			duplicate
+				? null
+				: paymentAccessToken,
+
         registration: {
             registrationCode: saved.registrationCode,
             status: saved.status,
@@ -1594,7 +1631,7 @@ export default {
 						error: "A valid submission key is required",
 					},
 					400,
-					responseHeadersk,
+					responseHeaders,
 				);
 			}
 
@@ -1625,9 +1662,19 @@ export default {
 					email,
 					amountDueCents,
 				});
+				
+				const paymentUrl = buildPaymentUrl(
+					env,
+					result.paymentAccessToken,
+				);
 
 				return json(
-					{ ok: true, ...result },
+					{
+						ok: true,
+						duplicate: result.duplicate,
+						paymentUrl,
+						registration: result.registration,
+					},
 					result.duplicate ? 200 : 201,
 					responseHeaders,
 				);
