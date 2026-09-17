@@ -806,7 +806,7 @@ export async function storeRegistration(db, registration) {
             FROM registrations
             WHERE payment_access_token_hash = ? AND submission_key = ?
         `).bind(
-            registrationCode,
+            paymentAccessToken,
             registration.submissionKey,
         ),
 
@@ -894,6 +894,7 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 	}
 
 	const payment = {
+		paymentAccessToken: cleanText(body?.paymentAccessToken,).toLowerCase(),
 		registrationCode: cleanText(body?.registrationCode).toUpperCase(),
 		submissionKey: cleanText(body?.submissionKey).toLowerCase(),
 		paymentMethod: cleanText(body?.paymentMethod).toLowerCase(),
@@ -904,9 +905,20 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 	const uuidPattern = 
 		/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+	const tokenPattern = /^[0-9a-f]{64}$/;
+
+	const usesPaymentToken = tokenPattern.test(
+		payment.paymentAccessToken,
+	);
+
+	const usesRegistrationCredentials =
+		/^HACXI-[0-9A-F]{12}$/.test(
+			payment.registrationCode,
+		) &&
+		uuidPattern.test(payment.submissionKey);
+
 	if (
-		!/^HACXI-[0-9A-F]{12}$/.test(payment.registrationCode) ||
-        !uuidPattern.test(payment.submissionKey) ||
+		(!usesPaymentToken && !usesRegistrationCredentials) ||
         !["venmo", "cash_app"].includes(payment.paymentMethod) ||
         !payment.paymentSenderHandle ||
         payment.paymentSenderHandle.length > 100 ||
@@ -933,6 +945,23 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 		);
 	}
 
+	const paymentTokenHash = usesPaymentToken
+		? await hashPaymentAccessToken(
+			payment.paymentAccessToken,
+		)
+		: null;
+
+	const registrationMatch = usesPaymentToken
+		? "payment_access_token_hash = ?"
+		: "registration_code = ? AND submission_key = ?";
+
+	const registrationMatchValues = usesPaymentToken
+		? [paymentTokenHash]
+		: [
+			payment.registrationCode,
+			payment.submissionKey,
+		];
+
 	try {
 		const details = JSON.stringify({
 			paymentMethod: payment.paymentMethod,
@@ -949,12 +978,11 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 				SELECT id, 'payment_reported', 'registrant',
 					status, 'payment_reported', ?
 					FROM registrations
-					WHERE registration_code = ? AND submission_key = ?
+					WHERE ${registrationMatch}
 					AND status IN ('awaiting_payment', 'payment_not_found')
 			`).bind(
 				details,
-				payment.registrationCode,
-				payment.submissionKey,
+				...registrationMatchValues,
 			),
 
 			db.prepare(`
@@ -965,14 +993,13 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 					payment_reference = ?,
 					payment_reported_at = unixepoch(),
 					updated_at = unixepoch()
-				WHERE registration_code = ? AND submission_key = ?
+				WHERE ${registrationMatch}
 					AND status IN ('awaiting_payment', 'payment_not_found')
 			`).bind(
 				payment.paymentMethod,
 				payment.paymentSenderHandle,
 				payment.paymentReference,
-				payment.registrationCode,
-				payment.submissionKey,
+				...registrationMatchValues,
 			),
 
 			db.prepare(`
@@ -984,10 +1011,9 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 					payment_reference AS paymentReference,
 					payment_reported_at AS paymentReportedAt
 				FROM registrations
-				WHERE registration_code = ? AND submission_key = ?
+				WHERE ${registrationMatch}
 				`).bind(
-					payment.registrationCode,
-					payment.submissionKey,
+					...registrationMatchValues
 				),
 		]);
 
@@ -1025,7 +1051,7 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 					registrationCode: saved.registrationCode,
 					status: saved.status,
 					paymentMethod: saved.paymentMethod,
-					paymentReportAt: saved.paymentReportAt,
+					paymentReportedAt: saved.paymentReportedAt,
 				},
 			},
 			200,

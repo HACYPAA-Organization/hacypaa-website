@@ -8,6 +8,7 @@ import {
 } from "vitest";
 import worker, {
 	buildPrintifyOrderPayload,
+	handlePaymentReport,
  } from "../src/index.js";
 
 const allowedOrigin = "http://127.0.0.1:5500";
@@ -645,5 +646,84 @@ describe("HACYPAA checkout API", () => {
 			ok: false,
 			error: "Registration information is incomplete or invalid",
 		});
+	});
+
+	it("accepts a payment report authenticated by payment token", async () => {
+		const boundStatements = [];
+
+		const prepare = vi.fn((sql) => ({
+			bind: vi.fn((...values) => {
+				const statement = { sql, values };
+
+				boundStatements.push(statement);
+				return statement;
+			}),
+		}));
+
+		const batch = vi.fn().mockResolvedValue([
+			{
+				meta: { changes: 1 },
+			},
+			{
+				meta: {changes: 1 },
+			},
+			{
+				results: [
+					{
+						registrationCode: "HACXI-ABCDEF123456",
+						status: "payment_reported",
+						paymentMethod: "venmo",
+						paymentSenderHandle: "@test-user",
+						paymentReference: null,
+						paymentReportedAt: 1700000000,
+					},
+				],
+			},
+		]);
+
+		const response = await handlePaymentReport(
+			new Request(
+				"http://example.com/registration/payment-report",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						paymentAccessToken: "a".repeat(64),
+						paymentMethod: "venmo",
+						paymentSenderHandle: "@test-user",
+					}),
+				},
+			),
+			{
+				ORDERS_DB: {
+					prepare,
+					batch,
+				},
+			},
+			{},
+		);
+
+		expect(response.status).toBe(200);
+
+		expect(await response.json()).toEqual({
+			ok: true,
+			duplicate: false,
+			registration: {
+				registrationCode: "HACXI-ABCDEF123456",
+				status: "payment_reported",
+				paymentMethod: "venmo",
+				paymentReportedAt: 1700000000,
+			},
+		});
+
+		expect(boundStatements).toHaveLength(3);
+
+		const tokenHash = boundStatements[2].values[0];
+
+		expect(tokenHash).toMatch(/^[0-9a-f]{64}$/);
+		expect(boundStatements[0].values[1]).toBe(tokenHash);
+		expect(boundStatements[1].values[3]).toBe(tokenHash);
 	});
 });
