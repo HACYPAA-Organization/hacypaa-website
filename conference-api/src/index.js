@@ -777,12 +777,31 @@ export async function storeRegistration(db, registration) {
     const results = await db.batch([
         db.prepare(`
             INSERT INTO registrations (
-                registration_code, submission_key,
-                first_name, last_name, email,
-                amount_due_cents, currency, status,
+                registration_code, 
+				submission_key,
+                first_name, 
+				last_name, 
+				email,
+				phone_number,
+				sobriety_date,
+				location,
+				fellowship_aa,
+				fellowship_alanon,
+				accommodation_mobility,
+				accommodation_asl,
+				accommodation_details,
+				volunteer_interest,
+				scholarship_donation,
+				preferred_payment_method,
+                amount_due_cents, 
+				currency,
+				status,
 				payment_access_token_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'usd', 'awaiting_payment', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+					?, ?, ?, ?, ?, ?, ?, ?, ?,
+					 'usd', 'awaiting_payment', ?
+			)
             ON CONFLICT (submission_key) DO NOTHING
         `).bind(
             registrationCode,
@@ -790,6 +809,17 @@ export async function storeRegistration(db, registration) {
             registration.firstName,
             registration.lastName,
             registration.email,
+			registration.phoneNumber,
+			registration.sobrietyDate,
+			registration.location,
+			registration.fellowshipAa,
+			registration.fellowshipAlanon,
+			registration.accommodationMobility,
+			registration.accommodationAsl,
+			registration.accommodationDetails,
+			registration.volunteerInterest,
+			registration.scholarshipDonation,
+			registration.preferredPaymentMethod,
             registration.amountDueCents,
 			paymentAccessTokenHash,
         ),
@@ -806,7 +836,7 @@ export async function storeRegistration(db, registration) {
             FROM registrations
             WHERE payment_access_token_hash = ? AND submission_key = ?
         `).bind(
-            paymentAccessToken,
+            paymentAccessTokenHash,
             registration.submissionKey,
         ),
 
@@ -1616,6 +1646,58 @@ export default {
 			const firstName = cleanText(body?.firstName);
 			const lastName = cleanText(body?.lastName);
 			const email = cleanText(body?.email).toLowerCase();
+			const phoneNumber = cleanText(body?.phoneNumber);
+			const sobrietyDate = cleanText(body?.sobrietyDate) || null;
+			const location = cleanText(body?.location);
+
+			const fellowshipAa = body?.fellowshipAa === true ? 1 : 0;
+			const fellowshipAlanon = body?.fellowshipAlanon === true ? 1 : 0;
+			const accommodationMobility =
+				body?.accommodationMobility === true ? 1 : 0;
+			const accommodationAsl =
+				body?.accommodationAsl === true ? 1 : 0;
+
+			const accommodationDetails =
+				cleanText(body?.accommodationDetails) || null;
+
+			const volunteerInterest =
+				body?.volunteerInterest === true ? 1 : 0;
+			
+			const scholarshipDonation =
+				body?.scholarshipDonation === true ? 1 : 0;
+
+			const preferredPaymentMethod =
+				cleanText(body?.preferredPaymentMethod).toLowerCase();
+
+			const booleanFields = [
+				"fellowshipAa",
+				"fellowshipAlanon",
+				"accommodationMobility",
+				"accomodationAsl",
+				"volunteerInterest",
+				"scholarshipDonation",
+			];
+
+			const hasInvalidBoolean = booleanFields.some(
+				(field) =>
+						body?.[field] !== undefined &&
+						typeof body[field] !== "boolean",
+			);
+
+			const parsedSobrietyDate = sobrietyDate
+				? new Date(`${sobrietyDate}T00:00:00Z`)
+				: null;
+
+			const validSobrietyDate =
+				!sobrietyDate ||
+				(
+					/^\d{4}-\d{2}-\d{2}$/.test(sobrietyDate) &&
+					!Number.isNaN(parsedSobrietyDate.getTime()) &&
+					parsedSobrietyDate
+						.toISOString()
+						.slice(0, 10) === sobrietyDate &&
+					sobrietyDate <= new Date().toISOString().slice(0, 10)
+				);
 
 			if (
 				!body ||
@@ -1626,7 +1708,15 @@ export default {
 				!lastName ||
 				lastName.length > 100 ||
 				email.length > 254 ||
-				!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+				!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+				!phoneNumber ||
+				phoneNumber.length > 40 ||
+				!validSobrietyDate ||
+				location.length > 150 ||
+				(accommodationDetails?.length || 0) > 500 ||
+				hasInvalidBoolean ||
+				typeof body.volunteerInterest !== "boolean" ||
+				!["cash", "venmo"].includes(preferredPaymentMethod)
 			) {
 				return json(
 					{
@@ -1686,6 +1776,17 @@ export default {
 					firstName,
 					lastName,
 					email,
+					phoneNumber,
+					sobrietyDate,
+					location,
+					fellowshipAa,
+					fellowshipAlanon,
+					accommodationMobility,
+					accommodationAsl,
+					accommodationDetails,
+					volunteerInterest,
+					scholarshipDonation,
+					preferredPaymentMethod,
 					amountDueCents,
 				});
 				

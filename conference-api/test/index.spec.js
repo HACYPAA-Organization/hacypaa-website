@@ -574,7 +574,7 @@ describe("HACYPAA checkout API", () => {
 		vi.stubGlobal("fetch", fetchMock);
 
 		const message = {
-			id: "msg_printify_failutre",
+			id: "msg_printify_failure",
 			timestamp: new Date(),
 			body: { orderID: 44 },
 			attempts: 1,
