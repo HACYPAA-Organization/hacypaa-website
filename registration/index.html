@@ -100,29 +100,25 @@
       <section class="prereg-section" aria-labelledby="prereg-heading">
           <p class="section-kicker">HACYPAA XI · Divine Paradox</p>
 
-          <h1 id="prereg-heading">Pre-registration</h1>
+          <h1 id="prereg-heading">
+            Heartland Area Conference of Young People in Alcoholics Anonymous
+            (HACYPAA) Pre-Registration
+          </h1>
 
           <p>
-            Submit your details to receive a registration code. 
+            Please complete this form to pre-register for HACYPAA.
+            Pre-registration helps us plan effectively for a safe and successful
+            conference.
+          </p>
+
+          <p>
+            Submit your details to receive a registration code.
             Your registration is confirmed after payment is verified.
           </p>
 
-          <p><strong>Demo only. Please use test details.</strong></p>
-
           <form id="prereg-form" class="prereg-form" method="post">
             <label>
-              First name
-              <input
-                type="text"
-                name="firstName"
-                autocomplete="given-name"
-                maxlength="100"
-                required
-              />
-            </label>
-
-            <label>
-              Last name
+              Last name *
               <input
                 type="text"
                 name="lastName"
@@ -133,7 +129,18 @@
             </label>
 
             <label>
-              Email
+              First name *
+              <input
+                type="text"
+                name="firstName"
+                autocomplete="given-name"
+                maxlength="100"
+                required
+              />
+            </label>
+
+            <label>
+              Email *
               <input
                 type="email"
                 name="email"
@@ -143,74 +150,166 @@
               />
             </label>
 
+            <label>
+              Phone number *
+              <input
+                type="tel"
+                name="phoneNumber"
+                autocomplete="tel"
+                maxlength="40"
+                required
+                />
+            </label>
+
+            <label>
+              Sobriety date
+              <input type="date" name="sobrietyDate" />
+            </label>
+
+            <label>
+              Location
+              <input
+                type="text"
+                name="location"
+                maxlength="150"
+                placeholder="City, state"
+              />
+            </label>
+
+            <fieldset>
+                <legend>What fellowships are you a member of?</legend>
+
+                <label>
+                  <input type="checkbox" name="fellowshipAa" />
+                  Alcoholics Anonymous
+                </label>
+
+                <label>
+                  <input type="checkbox" name="fellowshipAlanon" />
+                  Al-Anon, Alateen, or AFG
+                </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                Will you require any special accommodations?
+              </legend>
+
+              <label>
+                <input type="checkbox" name="accommodationMobility" />
+                Mobility assistance
+              </label>
+
+              <label>
+                <input type="checkbox" name="accommodationAsl" />
+                ASL interpreter
+              </label>
+
+              <label>
+                <input type="checkbox" name="accommodationNone" />
+                None
+              </label>
+            </fieldset>
+
+            <label>
+              Dietary restrictions or other accommodation details
+              <textarea
+                name="accommodationDetails"
+                maxlength="500"
+                rows="4"
+              ></textarea>
+            </label>
+
+            <fieldset>
+              <legend>
+                I a interested in service opportunities during the conference. *
+              </legend>
+
+              <label>
+                <input
+                  type="radio"
+                  name="volunteerInterest"
+                  value="yes"
+                  required
+                />
+                Yes, please contact me about volunteering.
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="volunteerInterest"
+                  value="no"
+                />
+                No, I will not be volunteering at this time.
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Would you like to donate a scholarship?</legend>
+
+              <label>
+                <input
+                  type="radio"
+                  name="scholarshipDonation"
+                  value="yes"
+                />
+                Yes
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="scholarshipDonation"
+                  value="no"
+                />
+                No
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Preferred payment method *</legend>
+
+              <label>
+                <input
+                  type="radio"
+                  name="preferredPaymentMethod"
+                  value="cash"
+                  required
+                />
+                Cash
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="preferredPaymentMethod"
+                  value="cash_app"
+                />
+                Cash App
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="preferredPaymentMethod"
+                  value="venmo"
+                />
+                Venmo
+              </label>
+            </fieldset>
+
             <button
               id="prereg-submit"
               class="button"
               type="submit"
               disabled
             >
-              Save registration
+              Continue to payment
             </button>
           </form>
 
           <p id="prereg-feedback" role="status"></p>
-
-          <section
-            id="prereg-confirmation"
-            class="prereg-confirmation"
-            aria-labelledby="prereg-confirmation-heading"
-            tabindex="-1"
-            hidden
-          >
-            <h2 id="prereg-confirmation-heading">Registration saved</h2>
-
-            <p>Your registration code:</p>
-            <p><strong id="prereg-code"></strong></p>
-
-            <p id="prereg-amount"></p>
-            <p id="prereg-payment-status">Payment has not been confirmed.</p>
-
-            <form id="payment-report-form" class="prereg-form">
-              <label>
-                Payment method
-                <select name="paymentMethod" required>
-                  <option value="">Choose a method</option>
-                  <option value="venmo">Venmo</option>
-                  <option value="cash_app">Cash App</option>
-                </select>
-              </label>
-
-              <label>
-                Payment username or sender name
-                <input
-                  type="text"
-                  name="paymentSenderHandle"
-                  maxlength="100"
-                  required
-                />
-              </label>
-
-              <label>
-                Payment reference or note
-                <input
-                  type="text"
-                  name="paymentReference"
-                  maxlength="200"
-                />
-              </label>
-
-              <button
-                id="payment-report-submit"
-                class="button"
-                type="submit"
-                disabled
-              >
-                Report Payment
-              </button>
-            </form>
-
-            <p id="payment-feedback" role="status"></p>
-          </section>
         </div>
       </section>
 

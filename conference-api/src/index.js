@@ -114,7 +114,7 @@ function stripeObjectID(value) {
 
 function buildOrderRecord(event, session) {
 	const customer = session.customer_details;
-	const shipping = 
+	const shipping =
 		session.collected_information?.shipping_details;
 	const address = shipping?.address;
 
@@ -346,7 +346,7 @@ async function storePaidOrder(db, order, items) {
 			db
 				.prepare(
 					`
-					
+
 					INSERT INTO order_items (
 						order_id,
 						stripe_line_item_id,
@@ -366,7 +366,7 @@ async function storePaidOrder(db, order, items) {
 							),
 							?, ?, ?, ?, ?, ?, ?, ?
 						)
-						`,		
+						`,
 				)
 				.bind(
 					order.stripeSessionID,
@@ -523,7 +523,7 @@ async function submitPrintifyOrder(
 			typeof responseData?.message === "string"
 				? responseData.message
 				: `HTTP ${response.status}`;
-		throw new Error(`Printify rejected order: ${message}`);	
+		throw new Error(`Printify rejected order: ${message}`);
 	}
 
 	if (
@@ -631,6 +631,172 @@ async function recordFulfillmentFailure(
 		)
 		.bind(message, orderID)
 		.run();
+}
+
+export async function sendRegistrationEmail(env, email) {
+	const apiKey = cleanText(env.RESEND_API_KEY);
+	const from = cleanText(env.PREREG_FROM_EMAIL);
+
+	if (!apiKey || !from) {
+		throw new Error("Registration email is not configured");
+	}
+
+	const response = await globalThis.fetch(
+		"https://api.resend.com/emails",
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+				"Idempotency-Key": email.idempotencyKey,
+			},
+			body: JSON.stringify({
+				from,
+				to: [email.to],
+				subject: email.subject,
+				html: email.html,
+				text: email.text,
+			}),
+		},
+	);
+
+	const responseText = await response.text();
+	let responseData = null;
+
+	try {
+		responseData = responseText
+			? JSON.parse(responseText)
+			: null;
+	} catch {
+		// Handled below.
+	}
+
+	if (
+		!response.ok ||
+		typeof responseData?.id !== "string"
+	) {
+		const message =
+			cleanText(responseData?.message) ||
+			`HTTP ${response.status}`;
+
+		throw new Error(
+			`Resend rejected registration email: ${message}`,
+		);
+	}
+
+	return responseData.id;
+}
+
+function escapeEmailHtml(value) {
+	return String(value).replace(
+		/[&<>"']/g,
+		(character) =>
+		({
+			"&": "amp;",
+			"<": "&lt;",
+			">": "&gt;",
+			'"': "&quot;",
+			"'": "&#39;",
+		})[character],
+	);
+}
+
+async function sendPaymentLinkEmail(env, registration) {
+	const amount =
+		`$${(registration.amountDueCents / 100).toFixed(2)}`;
+
+	const safeFirstName =
+		escapeEmailHtml(registration.firstName);
+	const safeCode =
+		escapeEmailHtml(registration.registrationCode);
+	const safePaymentUrl =
+		escapeEmailHtml(registration.paymentUrl);
+
+	return sendRegistrationEmail(env, {
+		to: registration.email,
+		subject: "Complete your HACYPAA XI pre-registration",
+		idempotencyKey:
+			`prere-payment-link/${registration.registrationCode}`,
+		text: [
+			`Hi ${registration.firstName},`,
+			"",
+			"Your HACYPAA XI pre-registration has been saved.",
+			`Registration code: ${registration.registrationCode}`,
+			`Amount due: ${amount}`,
+			"",
+			"Use this private link to report your payment:",
+			registration.paymentUrl,
+			"",
+			"your registration is not confirmed until the committee verifies your payment.",
+			"Do not forward this payment link.",
+			].join("\n"),
+		html: `
+				<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0b0b0a">
+				<h1>HACYPAA XI PRE-REGISTRATION</h1>
+				<p>Hi ${safeFirstName},</p>
+				<p>Your pre-registration has been saved.</p>
+				<p>
+					<strong>Registration code:</strong> ${safeCode}<br>
+					<strong>Amount due:</strong> ${amount}
+				</p>
+				<p>
+					<a
+						href="${safePaymentUrl}"
+						style="display:inline-block;background:#0b0b0a;color:#f5efe3;padding:14px 20px;text-decoration:none;font-weight:bold"
+					>
+						REPORT PAYMENT
+					</a>
+				</p>
+				<p>
+					Your registration is not confirmed until the committee verifies your payment.
+				</p>
+				<p><strong>Do not forward this private payment link.</strong></p>
+			</div>
+		`,
+	});
+}
+
+export async function sendPaymentConfirmationEmail(env, registration) {
+	const amount =
+		`$${(registration.amountDueCents / 100).toFixed(2)}`;
+
+		const safeFirstName =
+			escapeEmailHtml(registration.firstName);
+		const safeCode =
+			escapeEmailHtml(registration.registrationCode);
+
+		return sendRegistrationEmail(env, {
+			to: registration.email,
+			subject: "Your HACYPAA XI registration is confirmed",
+			idempotencyKey:
+				`prereg-payment-confirmed/${registration.registrationCode}`,
+			text: [
+				`Hi ${registration.firstName},`,
+				"",
+
+				"Your payment has been verified.",
+				"Your HACYPAA XI registration is now confirmed.",
+				`Registration code: ${registration.registrationCode}`,
+				`Amount confirmed: ${amount}`,
+				"",
+				"We look forward to seeing you.",
+			].join("\n"),
+			html: `
+				<div style="font-family:Arial,sans-serif;line-height:1.6,color:#0b0b0a">
+					<h1>REGISTRATION CONFIRMED</h1>
+					<p>Hi ${safeFirstName},</p>
+					<p>
+						Your payment has been verified and your
+						HACYPAA XI registration is now confirmed.
+					</p>
+					<p>
+						<strong>Registration code:</strong> ${safeCode}<br>
+						<strong>Amount confirmed:</strong> ${amount}
+					</p>
+					<p>We look forward to seeing you!</p>
+				</div>
+			`,
+		});
 }
 
 function buildPaymentUrl(env, token) {
@@ -765,10 +931,10 @@ export async function storeRegistration(db, registration) {
             .replaceAll("-", "")
             .slice(0, 12)
             .toUpperCase();
-	
+
 	const paymentAccessToken =
 		createPaymentAccessToken();
-	
+
 	const paymentAccessTokenHash =
 		await hashPaymentAccessToken(
 				paymentAccessToken,
@@ -777,10 +943,10 @@ export async function storeRegistration(db, registration) {
     const results = await db.batch([
         db.prepare(`
             INSERT INTO registrations (
-                registration_code, 
+                registration_code,
 				submission_key,
-                first_name, 
-				last_name, 
+                first_name,
+				last_name,
 				email,
 				phone_number,
 				sobriety_date,
@@ -793,7 +959,7 @@ export async function storeRegistration(db, registration) {
 				volunteer_interest,
 				scholarship_donation,
 				preferred_payment_method,
-                amount_due_cents, 
+                amount_due_cents,
 				currency,
 				status,
 				payment_access_token_hash
@@ -932,7 +1098,7 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 		paymentReference: cleanText(body?.paymentReference) || null,
 	};
 
-	const uuidPattern = 
+	const uuidPattern =
 		/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 	const tokenPattern = /^[0-9a-f]{64}$/;
@@ -1033,9 +1199,9 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 			),
 
 			db.prepare(`
-				SELECT 
+				SELECT
 					registration_code AS registrationCode,
-					status, 
+					status,
 					payment_method AS paymentMethod,
 					payment_sender_handle AS paymentSenderHandle,
 					payment_reference AS paymentReference,
@@ -1252,6 +1418,39 @@ async function handleAdminRegistrationStatus(
 	}
 
 	const now = Math.floor(Date.now() / 1000);
+	const registration = await env.ORDERS_DB.prepare(
+		`
+			SELECT
+				registration_code AS registrationCode,
+				first_name AS firstName,
+				email,
+				status,
+				amount_due_cents AS amountDueCents
+			FROM registrations
+			WHERE registration_code = ?
+			LIMIT 1
+		`,
+	)
+		.bind(registrationCode)
+		.first();
+
+	if (!registration) {
+		return Response.json(
+			{
+				ok: false,
+				error: "Registration not found.",
+			},
+			{
+				status: 404,
+				headers: corsHeaders,
+			},
+		);
+	}
+
+	const shouldSendConfirmation =
+		nextStatus === "confirmed" &&
+		registration.status !== "confirmed";
+
 	const confirmedAt =
 		nextStatus === "confirmed" ? now : null;
 
@@ -1284,6 +1483,20 @@ async function handleAdminRegistrationStatus(
 				headers: corsHeaders,
 			},
 		);
+	}
+
+	if (shouldSendConfirmation) {
+		try {
+			await sendPaymentConfirmationEmail(
+				env,
+				registration,
+			);
+		} catch (error) {
+			console.error("Confirmation email failed", {
+				name: error?.name,
+				message: error?.message,
+			});
+		}
 	}
 
 	return Response.json(
@@ -1612,7 +1825,7 @@ export default {
 				corsHeaders,
 			);
 		}
-		
+
 
 		if (
 			request.method === "POST" &&
@@ -1662,7 +1875,7 @@ export default {
 
 			const volunteerInterest =
 				body?.volunteerInterest === true ? 1 : 0;
-			
+
 			const scholarshipDonation =
 				body?.scholarshipDonation === true ? 1 : 0;
 
@@ -1716,7 +1929,7 @@ export default {
 				(accommodationDetails?.length || 0) > 500 ||
 				hasInvalidBoolean ||
 				typeof body.volunteerInterest !== "boolean" ||
-				!["cash", "venmo"].includes(preferredPaymentMethod)
+				!["cash", "cash_app", "venmo"].includes(preferredPaymentMethod)
 			) {
 				return json(
 					{
@@ -1789,11 +2002,30 @@ export default {
 					preferredPaymentMethod,
 					amountDueCents,
 				});
-				
+
 				const paymentUrl = buildPaymentUrl(
 					env,
 					result.paymentAccessToken,
 				);
+
+				if(!result.duplicate) {
+					try {
+						await sendPaymentLinkEmail(env, {
+							email,
+							firstName,
+							registrationCode:
+								result.registration.registrationCode,
+							amountDueCents:
+								result.registration.amountDueCents,
+							paymentUrl,
+						});
+					} catch (error) {
+						console.error("Payment-link email failed", {
+							name: error?.name,
+							message: error?.message,
+						});
+					}
+				}
 
 				return json(
 					{
@@ -2158,7 +2390,7 @@ export default {
 
 			const shopID = env.PRINTIFY_SHOP_ID?.trim();
 
-			const productsUrl = 
+			const productsUrl =
 			"https://api.printify.com/v1/shops/" +
 			encodeURIComponent(shopID) +
 			"/products.json";
@@ -2327,7 +2559,7 @@ export default {
 					orderID,
 					fulfillmentStatus: order.fulfillment_status,
 				});
-				
+
 				message.ack();
 				continue;
 			}
@@ -2365,7 +2597,7 @@ export default {
 			try {
 				const printifyPayload =
 					buildPrintifyOrderPayload(fulfillmentOrder);
-				
+
 				const printifyOrder =
 					await submitPrintifyOrder(
 						printifyToken,

@@ -9,6 +9,8 @@ import {
 import worker, {
 	buildPrintifyOrderPayload,
 	handlePaymentReport,
+	sendPaymentConfirmationEmail,
+	sendRegistrationEmail,
  } from "../src/index.js";
 
 const allowedOrigin = "http://127.0.0.1:5500";
@@ -725,5 +727,120 @@ describe("HACYPAA checkout API", () => {
 		expect(tokenHash).toMatch(/^[0-9a-f]{64}$/);
 		expect(boundStatements[0].values[1]).toBe(tokenHash);
 		expect(boundStatements[1].values[3]).toBe(tokenHash);
+	});
+
+	it("sends registration email through Resend", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					id: "email_test_123",
+				}),
+				{
+					status: 200,
+					headers: {
+						"Content-Type": "application/json",
+					},
+				},
+			),
+		);
+
+		vi.stubGlobal("fetch",fetchMock);
+
+		const emailID = await sendRegistrationEmail(
+			{
+				RESEND_API_KEY: "re_test_key",
+				PREREG_FROM_EMAIL:
+					"HACYPAA XI Registration <onboarding@resend.dev>",
+			},
+			{
+				to: "registrant@example.com",
+				subject: "Test registration email",
+				idempotencyKey: "prereg-test/HACXI-TEST123456",
+				html: "<p>Test registration email</p>",
+				text: "Test registration email",
+			},
+		);
+
+		expect(emailID).toBe("email_test_123");
+		expect(fetchMock).toHaveBeenCalledOnce();
+
+		const [url, requestOptions] =
+			fetchMock.mock.calls[0];
+
+		expect(url).toBe("https://api.resend.com/emails");
+		expect(requestOptions.method).toBe("POST");
+		expect(requestOptions.headers).toMatchObject({
+			Authorization: "Bearer re_test_key",
+			"Content-Type": "application/json",
+			"Idempotency-Key":
+				"prereg-test/HACXI-TEST123456",
+		});
+
+		expect(JSON.parse(requestOptions.body)).toEqual({
+			from:
+				"HACYPAA XI Registration <onboarding@resend.dev>",
+			to: ["registrant@example.com"],
+			subject: "Test registration email",
+			html: "<p>Test registration email</p>",
+			text: "Test registration email",
+		});
+	});
+
+	it("sends payment confirmation with registration details", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					id: "email_confirmation_123",
+				}),
+				{
+					status: 200,
+					headers: {
+						"Content-Type": "application/json",
+					},
+				},
+			),
+		);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		const emailID = await sendPaymentConfirmationEmail(
+			{
+				RESEND_API_KEY: "re_test_key",
+				PREREG_FROM_EMAIL:
+					"HACYPAA XI Registration <onboarding@resend.dev>",
+			},
+			{
+				email: "registrant@example.com",
+				firstName: "Zach",
+				registrationCode: "HACXI-ABCDEF123456",
+				amountDueCents: 2500,
+			},
+		);
+
+		expect(emailID).toBe("email_confirmation_123");
+		expect(fetchMock).toHaveBeenCalledOnce();
+
+		const [, requestOptions] =
+			fetchMock.mock.calls[0];
+		const email = JSON.parse(requestOptions.body);
+
+		expect(requestOptions.headers["Idempotency-Key"]).toBe(
+			"prereg-payment-confirmed/HACXI-ABCDEF123456",
+		);
+		expect(email.to).toEqual([
+			"registrant@example.com",
+		]);
+		expect(email.subject).toBe(
+			"Your HACYPAA XI registration is confirmed",
+		);
+		expect(email.text).toContain(
+			"Registration code: HACXI-ABCDEF123456",
+		);
+		expect(email.text).toContain(
+			"Amount confirmed: $25.00",
+		);
+		expect(email.html).toContain(
+			"REGISTRATION CONFIRMED",
+		);
 	});
 });

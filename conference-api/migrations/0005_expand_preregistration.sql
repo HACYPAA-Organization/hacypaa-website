@@ -37,4 +37,4 @@ CHECK (scholarship_donation IN (0, 1));
 
 ALTER TABLE registrations
 ADD COLUMN preferred_payment_method TEXT NOT NULL DEFAULT ''
-CHECK (preferred_payment_method IN ('', 'cash', 'venmo'));
+CHECK (preferred_payment_method IN ('', 'cash', 'cash_app', 'venmo'));
