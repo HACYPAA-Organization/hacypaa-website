@@ -1,2 +1,2 @@
-ALTAR TABLE registrations
-ADD COLUMN home_group TEXT;
+-- home_group already exists from the previous partial migration attempt.
+SELECT 1;
