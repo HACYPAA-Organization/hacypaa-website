@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta
+      name="description"
+      content="Pre-register for HACYPAA 2027 and help the committee plan the conference."
+    />
+
+    <title>Report Payment | HACYPAA — Divine Paradox</title>
+
+    <link rel="canonical" href="https://hacypaa.us/registration/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HACYPAA" />
+    <meta property="og:title" content="Registration | HACYPAA - Divine Paradox" />
+    <meta
+      property="og:description"
+      content="Pre-register for HACYPAA XI and help the committee plan the conference."
+    />
+    <meta property="og:url" content="https://hacypaa.us/registration/" />
+    <meta
+      property="og:image"
+      content="https://hacypaa.us/assets/images/social-card.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="HACYPAA XI Divine Paradox 2027"
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Registration | HACYPAA - Divine Paradox" />
+    <meta
+      name="twitter:description"
+      content="Pre-register for HACYPAA XI and help the committee plan the conference."
+    />
+    <meta
+      name="twitter:image"
+      content="https://hacypaa.us/assets/images/social-card.png"
+    />
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+
+
+    <link rel="icon" href="/assets/images/FAVICON.png" type="image/png" />
+
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+
+  <body>
+    <main id="main-content">
+      <section class="section">
+        <div class="shell prereg-shell">
+          <p class="eyebrow">
+            HACYPAA XI · DIVINE PARADOX
+          </p>
+
+          <h1>Report your payment</h1>
+
+          <p>
+            Use the secure link from your registration
+            email to report your Venmo or Cash App
+            payment.
+          </p>
+
+          <p
+            id="payment-link-feedback"
+            role="status"
+          >
+              Checking your payment link...
+          </p>
+
+          <section
+            id="payment-report-panel"
+            hidden
+          >
+            <div class="prereg-summary">
+              <p>
+                <strong>Attendee:</strong>
+                <span id="payment-attendee-name"></span>
+              </p>
+
+              <p>
+                <strong>Registration code:</strong>
+                <span id="payment-code"></span>
+              </p>
+
+              <p>
+                <strong>Amount due:</strong>
+                <span id="payment-amount"></span>
+              </p>
+            </div>
+
+            <form
+              id="payment-report-form"
+              class="prereg-form"
+            >
+                <label for="payment-method">
+                  Payment method
+                </label>
+
+                <select
+                  id="payment-method"
+                  name="paymentMethod"
+                  required
+                >
+                  <option value="">
+                    Choose a payment method
+                  </option>
+                  <option value="venmo">
+                    Venmo
+                  </option>
+                  <option value="cash_app">
+                    Cash App
+                  </option>
+                </select>
+
+                <label for="payment-sender-handle">
+                  Sender username or handle
+                </label>
+
+                <input
+                  id="payment-sender-handle"
+                  name="paymentSenderHandle"
+                  type="text"
+                  maxlength="100"
+                  required
+                >
+
+                <label for="payment-reference">
+                  Payment reference or note
+                  <span aria-hidden="true">
+                    (Registration Code)
+                  </span>
+                </label>
+
+                <input
+                  id="payment-reference"
+                  name="paymentReference"
+                  type="text"
+                  maxlength="100"
+                >
+
+                <label class="prereg-checkbox">
+                  <input
+                    id="payment-confirmation"
+                    name="paymentConfirmation"
+                    type="checkbox"
+                    required
+                  >
+
+                  <span>
+                    I confirm that I submitted this
+                    payment using the information
+                    above.
+                  </span>
+                </label>
+
+                <button
+                  id="payment-report-submit"
+                  class="button"
+                  type="submit"
+                >
+                  Report payment
+                </button>
+
+                <p
+                  id="payment-report-feedback"
+                  role="status"
+                ></p>
+              </form>
+          </section>
+
+          <section
+            id="payment-report-success"
+            tabindex="-1"
+            hidden
+          >
+            <p class="eyebrow">
+              Payment reported
+            </p>
+
+            <h2>Our admin team will confirm payment</h2>
+
+            <p>
+              We received your payment report. The
+              registration team will compare it with
+              the payment account.
+            </p>
+
+            <p>
+              You will receive another email after your
+              registration has been confirmed.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/assets/js/script.js"></script>
+    <script
+     src="/assets/js/preregistration-payment.js?v=3"
+     defer
+    ></script>
+  </body>
+</html>
