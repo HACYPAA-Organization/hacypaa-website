@@ -73,6 +73,9 @@
                 location: String(
                     fields.get("location") || "",
                 ).trim(),
+                homeGroup: String(
+                    fields.get("homeGroup") || "",
+                ).trim(),
                 fellowshipAa: fields.has("fellowshipAa"),
                 fellowshipAlanon:
                     fields.has("fellowshipAlanon"),

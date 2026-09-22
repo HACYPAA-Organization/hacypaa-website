@@ -951,6 +951,7 @@ export async function storeRegistration(db, registration) {
 				phone_number,
 				sobriety_date,
 				location,
+				home_group,
 				fellowship_aa,
 				fellowship_alanon,
 				accommodation_mobility,
@@ -964,9 +965,10 @@ export async function storeRegistration(db, registration) {
 				status,
 				payment_access_token_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+            VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?,
-					 'usd', 'awaiting_payment', ?
+					?, ?, ?, ?, ?, ?, ?, ?, ?,
+					'usd', 'awaiting_payment', ?
 			)
             ON CONFLICT (submission_key) DO NOTHING
         `).bind(
@@ -978,6 +980,7 @@ export async function storeRegistration(db, registration) {
 			registration.phoneNumber,
 			registration.sobrietyDate,
 			registration.location,
+			registration.homeGroup,
 			registration.fellowshipAa,
 			registration.fellowshipAlanon,
 			registration.accommodationMobility,
@@ -1310,6 +1313,18 @@ export async function handleAdminRegistrations(
 				first_name AS firstName,
 				last_name AS lastName,
 				email,
+				phone_number AS phoneNumber,
+				sobriety_date AS sobrietyDate,
+				location,
+				home_group AS homeGroup,
+				fellowship_aa AS felloshipAa,
+				fellowship_alanon AS fellowshipAlaon,
+				accommodation_mobility AS accommodationMobility,
+				accommodation_asl AS accommodationAsl,
+				accommodation_details AS accommodationDetails,
+				volunteer_interest AS volunteerInterest,
+				scholarship_donation AS scholarshipDonation,
+				preferred_payment_method AS preferredPaymentMethod,
 				status,
 				amount_due_cents AS amountDueCents,
 				currency,
@@ -1862,6 +1877,8 @@ export default {
 			const phoneNumber = cleanText(body?.phoneNumber);
 			const sobrietyDate = cleanText(body?.sobrietyDate) || null;
 			const location = cleanText(body?.location);
+			const homeGroup =
+				cleanText(body?.homeGroup) || null;
 
 			const fellowshipAa = body?.fellowshipAa === true ? 1 : 0;
 			const fellowshipAlanon = body?.fellowshipAlanon === true ? 1 : 0;
@@ -1886,7 +1903,7 @@ export default {
 				"fellowshipAa",
 				"fellowshipAlanon",
 				"accommodationMobility",
-				"accomodationAsl",
+				"accommodationAsl",
 				"volunteerInterest",
 				"scholarshipDonation",
 			];
@@ -1926,6 +1943,7 @@ export default {
 				phoneNumber.length > 40 ||
 				!validSobrietyDate ||
 				location.length > 150 ||
+				(homeGroup?.length || 0) > 150 ||
 				(accommodationDetails?.length || 0) > 500 ||
 				hasInvalidBoolean ||
 				typeof body.volunteerInterest !== "boolean" ||
@@ -1992,6 +2010,7 @@ export default {
 					phoneNumber,
 					sobrietyDate,
 					location,
+					homeGroup,
 					fellowshipAa,
 					fellowshipAlanon,
 					accommodationMobility,

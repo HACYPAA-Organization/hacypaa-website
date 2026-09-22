@@ -157,8 +157,62 @@
             const email = document.createElement("small");
             const lineBreak = document.createElement("br");
 
-            email.textContent + registration.email || "Unknown";
+            email.textContent =
+                registration.email || "Unknown";
             attendeeCell.append(lineBreak, email);
+
+            addCell(
+                row,
+                registration.homeGroup || "Not provided",
+            );
+
+            const fellowships = [
+                registration.felloshipAa
+                    ? "Alcoholics Anonymous"
+                    : null,
+                registration.felloshipAlanon
+                    ? "Al-Anon, Alateen, or AFG"
+                    : null,
+            ]
+                .filter(Boolean)
+                .join(", ") || "None selected";
+
+            const accommodations = [
+                registration.accommodationMobility
+                    ? "Mobility assistance"
+                    : null,
+                registration.accommodationAsl
+                    ? "ASL interpreter"
+                    : null,
+                registration.accommodationDetails || null,
+            ]
+
+                .filter(Boolean)
+                .join("; ") || "None reported";
+
+            const detailsCell = addCell(
+                row,
+                [
+                    `Phone: ${registration.phoneNumber || "Not provided"}`,
+                    `Sobriety date: ${registration.sobrietyDate || "Not provided"}`,
+                    `Location: ${registration.location || "Not provided"}`,
+                    `Fellowship: ${fellowships}`,
+                    `Accommodations: ${accommodations}`,
+                    `Volunteer: ${
+                        registration.volunteerInterest ? "Yes" : "No"
+                    }`,
+                    `Scholarship donation: ${
+                        registration.scholashipDonation ? "Yes" : "No"
+                    }`,
+                    `Preferred payment: ${
+                        paymentLabels[
+                            registration.preferredPaymentMethod
+                        ] || "Not provided"
+                    }`,
+                ].join("\n"),
+            );
+
+            detailsCell.style.whiteSpace = "pre-line";
 
             addCell(
                 row,
@@ -169,7 +223,7 @@
                 row,
                 statusLabels[registration.status] ||
                 registration.status ||
-                "Unkown",
+                "Unknown",
             );
 
             let paymentText =
