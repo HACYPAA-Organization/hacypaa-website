@@ -13,68 +13,15 @@
 
     const accommodationNone =
         form.elements.namedItem("accommodationNone");
-    const accommodationOther =
-        form.elements.nameItem("accommodationOther");
-    const accommodationOtherPanel =
-        document.querySelector("#accommodation-other-details");
-
-    const dietaryAccommodation =
-        form.elements.namedItem("dietaryAccommodation");
-    const dietaryDetails =
-        form.elements.namedItem("dietaryDetails");
-    const dietaryPanel =
-        document.querySelector("#dietary-details");
 
     const accommodationChoices = [
         form.elements.namedItem("accommodationMobility"),
         form.elements.namedItem("accommodationAsl"),
-        accommodationOther,
     ];
 
     let submission = null;
     let busy = false;
     let completed = false;
-
-    function syncConditionalField(
-        checkbox,
-        panel,
-        details,
-    ) {
-        const active = Boolean(check?.checked);
-
-        if (panel) {
-            panel.hidden = !active;
-        }
-
-        checkbox?.setAttribute(
-            "aria-expanded",
-            String(active),
-        );
-
-        if (details) {
-            details.required = active;
-
-            if (!active) {
-                details.value = "";
-            }
-        }
-    }
-
-    function syncAccommmodationOther() {
-        syncConditionalField(
-            accommodationOther,
-            accommodationOtherPanel,
-            accommodationOtherDetails,
-        );
-    }
-
-    function syncDietaryDetails() {
-        syncConditionalField(
-            dietaryAccommodation,
-            dietaryPanel,
-            dietaryDetails,
-        );
-    }
 
     accommodationNone?.addEventListener("change", function () {
         if (!accommodationNone.checked) return;
@@ -82,8 +29,6 @@
         accommodationChoices.forEach((choice) => {
             if (choice) choice.checked = false;
         });
-
-        syncAccommmodationOther();
     });
 
     accommodationChoices.forEach((choice) => {
@@ -93,19 +38,6 @@
             }
         });
     });
-
-    accommodationOther?.addEventListener(
-        "change",
-        syncAccommmodationOther,
-    );
-
-    dietaryAccommodation?.addEventListener(
-        "change",
-        syncDietaryDetails,
-    );
-
-    syncAccommmodationOther();
-    syncDietaryDetails();
 
     form.addEventListener("submit", async function (event) {
         event.preventDefault();

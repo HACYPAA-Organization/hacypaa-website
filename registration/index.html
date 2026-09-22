@@ -167,17 +167,6 @@
             </label>
 
             <label>
-              Home group
-
-              <input
-                type="text"
-                name="homeGroup"
-                maxlength="150"
-                placeholder="Group name"
-              />
-            </label>
-
-            <label>
               Location
               <input
                 type="text"
@@ -201,72 +190,35 @@
                 </label>
             </fieldset>
 
-          <fieldset>
-            <legend>
-              Will you require any accessibility accommodations?
-            </legend>
+            <fieldset>
+              <legend>
+                Will you require any special accommodations?
+              </legend>
 
-            <label>
-              <input type="checkbox" name="accommodationMobility" />
-              Mobility assistance
-            </label>
-
-            <label>
-              <input type="checkbox" name="accommodationAsl" />
-              ASL interpreter
-            </label>
-
-            <label>
-              <input
-                type="checkbox"
-                name="accommodationOther"
-                aria-controls="accommodation-other-details"
-                aria-expanded="false"
-              />
-              Other accessibility accommodation
-            </label>
-
-            <div id="accommodation-other-details" hidden>
               <label>
-                Please describe the accessibility accommodation
-                <textarea
-                  name="accommodationOtherDetails"
-                  maxlength="500"
-                  rows="4"
-                ></textarea>
+                <input type="checkbox" name="accommodationMobility" />
+                Mobility assistance
               </label>
-            </div>
 
-            <label>
-              <input type="checkbox" name="accommodationNone" />
-              None
-            </label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Do you have any dietary accommodation needs?</legend>
-
-            <label>
-              <input
-                type="checkbox"
-                name="dietaryAccommodation"
-                aria-controls="dietary-details"
-                aria-expanded="false"
-              />
-              Yes, I have dietary accommodation needs
-            </label>
-
-            <div id="dietary-details" hidden>
               <label>
-                Please describe your dietary needs
-                <textarea
-                  name="dietaryDetails"
-                  maxlength="500"
-                  rows="4"
-                ></textarea>
+                <input type="checkbox" name="accommodationAsl" />
+                ASL interpreter
               </label>
-            </div>
-          </fieldset>
+
+              <label>
+                <input type="checkbox" name="accommodationNone" />
+                None
+              </label>
+            </fieldset>
+
+            <label>
+              Dietary restrictions or other accommodation details
+              <textarea
+                name="accommodationDetails"
+                maxlength="500"
+                rows="4"
+              ></textarea>
+            </label>
 
             <fieldset>
               <legend>
