@@ -1,7 +1,12 @@
 (function () {
     "use strict";
 
-    const apiBase = "http://127.0.0.1:8787";
+    const apiBase = [
+        "localhost",
+        "127.0.0.1",
+    ].includes(window.location.hostname)
+        ? "http://127.0.0.1:8787"
+        : "https://checkout-api.tgp-services.workers.dev";
 
     const loginForm =
         document.querySelector("#admin-login-form");
@@ -237,8 +242,8 @@
 
             addCell(row, paymentText);
             addCell(row, formatDate(registration.createdAt));
-            
-            
+
+
             const actionsCell = addCell(row, "");
 
             actionsCell.classList.add("admin-row-actions");

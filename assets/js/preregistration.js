@@ -1,7 +1,13 @@
 (function () {
     "use strict";
 
-    const apiBase = "http://127.0.0.1:8787";
+    const apiBase = [
+        "localhost",
+        "127.0.0.1",
+    ].includes(window.location.hostname)
+        ? "http://127.0.0.1:8787"
+        : "https://checkout-api.tgp-services.workers.dev";
+
     const form = document.querySelector("#prereg-form");
     if (!form) return;
 

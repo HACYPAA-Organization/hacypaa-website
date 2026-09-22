@@ -11,6 +11,11 @@
 		"enabled": true
 	},
 	"upload_source_maps": true,
+	"vars": {
+		"PREREG_PRICE_CENTS": "2500",
+		"PUBLIC_SITE_URL": "https://hacypaa.us",
+		"PREREG_FROM_EMAIL": "HACYPAA XI Registration <registration@mail.hacypaa.us>"
+	},
 	"d1_databases": [
 		{
 			"binding": "ORDERS_DB",
