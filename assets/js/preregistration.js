@@ -11,6 +11,11 @@
     const form = document.querySelector("#prereg-form");
     if (!form) return;
 
+    const resendButton =
+        document.querySelector("#prereg-resend");
+    const costDisplay =
+        document.querySelector("#prereg-cost");
+
     const button = document.querySelector("#prereg-submit");
     const feedback = document.querySelector("#prereg-feedback");
     const controls = form.querySelectorAll(
@@ -28,6 +33,41 @@
     let submission = null;
     let busy = false;
     let completed = false;
+
+    function formatAmount(amountDueCents) {
+        return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+        }).format(amountDueCents / 100);
+    }
+
+    async function loadRegistrationCost() {
+        try {
+            const response = await fetch(
+                apiBase + "/registration/config",
+            );
+
+            const data = await response
+                .json()
+                .catch(() => null);
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                !Number.isInteger(data.amountDueCents)
+            ) {
+                return;
+            }
+
+            costDisplay.textContent =
+                "Pre-registration cost: " +
+                formatAmount(data.amountDueCents);
+        } catch {
+            // Keep the $25 fallback written in the HTML.
+        }
+    }
+
+    loadRegistrationCost();
 
     accommodationNone?.addEventListener("change", function () {
         if (!accommodationNone.checked) return;
@@ -148,21 +188,32 @@
                 );
             }
 
-            if (
-                typeof data.paymentUrl !== "string" ||
-                !data.paymentUrl
-            ) {
-                throw new Error(
-                    "The server did not return a payment link.",
-                );
-            }
-
             completed = true;
-            feedback.dataset.state = "success";
-            feedback.textContent =
-                "Registration saved. Opening payment instructions...";
+            form.hidden = true;
 
-            window.location.assign(data.paymentUrl);
+            const amountDueCents =
+                Number(data.registration?.amountDueCents);
+            const amount = Number.isInteger(amountDueCents)
+                ? formatAmount(amountDueCents)
+                : "$25.00";
+            const registrationCode =
+                data.registration?.registrationCode ||
+                "Unavailable";
+
+            feedback.dataset.state =
+                data.emailSent ? "success" : "error";
+
+            feedback.textContent = data.emailSent
+                ? `Registration saved. Amount due: ${amount}. ` +
+                `Registration code: ${registrationCode}. ` +
+                `We sent your private payment link to ${submission.email}.`
+                : `Registration saved. Amount due: ${amount}. ` +
+                `Registration code: ${registrationCode}. ` +
+                "The payment email could not be confirmed. " +
+                "Use the resend button below.";
+
+            resendButton.hidden = false;
+            resendButton.disabled = false;
         } catch (error) {
             feedback.dataset.state = "error";
             feedback.textContent =
@@ -182,10 +233,91 @@
                 button.disabled = false;
                 button.textContent = submission
                     ? "Retry registration"
-                    : "Continue to payment";
+                    : "Submit pre-registration";
             }
         }
     });
+
+    resendButton.addEventListener(
+    "click",
+    async function () {
+        if (
+            busy ||
+            !submission?.submissionKey ||
+            !submission?.email
+        ) {
+            return;
+        }
+
+        busy = true;
+        resendButton.disabled = true;
+        resendButton.textContent = "Sending...";
+
+        feedback.dataset.state = "pending";
+        feedback.textContent =
+            "Sending a new private payment link...";
+
+        const controller = new AbortController();
+        const timer = setTimeout(
+            () => controller.abort(),
+            15000,
+        );
+
+        try {
+            const response = await fetch(
+                apiBase +
+                    "/registrations/resend-payment-link",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        submissionKey:
+                            submission.submissionKey,
+                        email: submission.email,
+                    }),
+                    signal: controller.signal,
+                },
+            );
+
+            const data = await response
+                .json()
+                .catch(() => null);
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                data?.emailSent !== true
+            ) {
+                throw new Error(
+                    data?.error ||
+                        "Could not resend the payment email.",
+                );
+            }
+
+            feedback.dataset.state = "success";
+            feedback.textContent =
+                "A new private payment link was sent to " +
+                submission.email +
+                ". The previous link is no longer valid.";
+        } catch (error) {
+            feedback.dataset.state = "error";
+            feedback.textContent =
+                error.name === "AbortError"
+                    ? "The resend request timed out. Please retry."
+                    : error.message ||
+                      "Could not resend the payment email.";
+        } finally {
+            clearTimeout(timer);
+            busy = false;
+            resendButton.disabled = false;
+            resendButton.textContent =
+                "Resend payment email";
+        }
+    },
+);
 
     button.disabled = false;
 })();
