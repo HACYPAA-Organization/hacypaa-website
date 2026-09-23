@@ -716,7 +716,8 @@ async function sendPaymentLinkEmail(env, registration) {
 		to: registration.email,
 		subject: "Complete your HACYPAA XI pre-registration",
 		idempotencyKey:
-			`prere-payment-link/${registration.registrationCode}`,
+			registration.idempotencyKey ||
+			`prereg-payment-link/${registration.registrationCode}`,
 		text: [
 			`Hi ${registration.firstName},`,
 			"",
@@ -1060,6 +1061,290 @@ export async function storeRegistration(db, registration) {
             currency: saved.currency,
         },
     };
+}
+
+export async function handleResendPaymentLink(
+	request,
+	env,
+	headers = {},
+) {
+	const responseHeaders = {
+		...headers,
+		"Cache-Control": "no-store",
+	};
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error: "Request body must be valid JSON",
+			},
+			400,
+			responseHeaders,
+		);
+	}
+
+	const submissionKey =
+		cleanText(body?.submissionKey).toLowerCase();
+	const email =
+		cleanText(body?.email).toLowerCase();
+
+	const validSubmissionKey =
+		 /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+	if (
+		!validSubmissionKey.test(submissionKey) ||
+		!email ||
+		email.length > 254
+	) {
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error: "Valid registration details are required",
+			},
+			400,
+			responseHeaders,
+		);
+	}
+
+	const registration = await env.ORDERS_DB.prepare(
+		`
+			SELECT
+				id,
+				registration_code AS registrationCode,
+				first_name AS firstName,
+				email,
+				status,
+				amount_due_cents AS amountDueCents,
+				currency,
+				payment_access_token_has AS currentTokenHash,
+				registration_email_sent_at AS registrationEmailSentAt
+			FROM registrations
+			WHERE sumbission_key = ? AND email = ?
+			LIMIT 1
+		`,
+	)
+
+		.bind(submissionKey, email)
+		.first();
+
+	if (!registration) {
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error: "Registration could not be found",
+			},
+			404,
+			responseHeaders,
+		);
+	}
+
+	if (registration.status !== "awaiting_payment") {
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error:
+					"A payent email is no longer needed for this registration",
+			},
+			409,
+			responseHeaders,
+		);
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const previousSentAt =
+		Number(registration.registrationEmailSentAt);
+
+	if (
+		Number.isFinite(previousSentAt) &&
+		previousSentAt > 0 &&
+		now - previousSentAt < 60
+	) {
+		const retryAfter =
+			60 - (now - previousSentAt);
+
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				retryAfter,
+				error:
+					`Please wait ${retryAfter} seconds before resending`,
+			},
+			429,
+			{
+				...responseHeaders,
+				"Retry-After": String(retryAfter),
+			},
+		);
+	}
+
+	const paymentAccessToken =
+		createPaymentAccessToken();
+	const paymentAccessTokenHash =
+		await hashPaymentAccessToken(
+			paymentAccessToken,
+		);
+
+	const rotation = await env.ORDERS_DB.prepare(
+		`
+			UPDATE registrations
+			SET
+				payment_access_token_hash = ?,
+				updated_at = ?
+			WHERE
+				id = ?
+				AND status = 'awaiting_payment'
+				AND (
+					payment_access_token_hash = ?
+					OR (
+						payment_access_token_hash IS NULL
+						AND ? IS NULL
+						)
+					)
+		`,
+	)
+		.bind(
+			paymentAccessTokenHash,
+			now,
+			registration.id,
+			registration.currentTokenHash,
+			registration.currentTokenHash,
+		)
+		.run();
+
+	if (!rotation.meta?.changes) {
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error:
+					"Registration changed while resending. Please retry.",
+			},
+			409,
+			responseHeaders,
+		);
+	}
+
+	const paymentUrl = buildPaymentUrl(
+		env,
+		paymentAccessToken,
+	);
+
+	try {
+		await sendPaymentLinkEmail(env, {
+			email: registration.email,
+			firstName: registration.firstName,
+			registrationCode:
+				registration.registrationCode,
+			amountDueCents:
+				registration.amountDueCents,
+			paymentUrl,
+			idempotencyKey:
+				`prereg-payment-link/` +
+				`${registration.registrationCode}/` +
+				paymentAccessTokenHash.slice(0,16),
+		});
+	} catch (error) {
+		try {
+			await env.ORDERS_DB.prepare(
+				`
+					UPDATE registrations
+					SET
+						payment_access_token_hash = ?,
+						updated_at = ?
+					WHERE
+						id = ?
+						AND payment_access_token_hash = ?
+				`,
+			)
+				.bind(
+					registration.currentTokenHash,
+					now,
+					registration.id,
+					paymentAccessTokenHash,
+				)
+				.run();
+		} catch (rollbackError) {
+			console.error(
+				"Payment-link token rollback failed",
+				{
+					name: rollbackError?.name,
+					message: rollbackError?.message,
+				},
+			);
+		}
+
+		console.error("Payment-link resend failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{
+				ok: false,
+				emailSent: false,
+				error:
+					"The registration is saved, but the email could not be resent",
+			},
+			502,
+			responseHeaders,
+		);
+	}
+
+	try {
+		await env.ORDERS_DB.prepare(
+			`
+				UPDATE registrations
+				SET
+					registration_email_sent_at = ?,
+					updated_at = ?
+				WHERE
+					id = ?
+					AND payment_access_token_hash = ?
+			`,
+		)
+			.bind(
+				now,
+				now,
+				registration.id,
+				paymentAccessTokenHash,
+			)
+			.run();
+	} catch (error) {
+		console.error(
+			"Payment-link email timestamp failed" ,
+			{
+				name: error?.name,
+				message: error?.message,
+			},
+		);
+	}
+
+	return json(
+		{
+			ok: true,
+			emailSent: true,
+			registration: {
+				registrationCode:
+					registration.registrationCode,
+				status: registration.status,
+				amountDueCents:
+					registration.amountDueCents,
+				currency: registration.currency,
+			},
+		},
+		200,
+		responseHeaders,
+	);
 }
 
 function isPreregAdmin(request, env) {
@@ -1841,12 +2126,65 @@ export default {
 			);
 		}
 
+		if (
+			request.method === "GET" &&
+			url.pathname === "/registration/config"
+		) {
+			const amountDueCents = Number(
+				String(
+					env.PREREG_PRICE_CENTS ?? "",
+				).trim(),
+			);
+
+			if (
+				!Number.isInteger(amountDueCents) ||
+				amountDueCents <= 0
+			) {
+				return json(
+					{
+						ok: false,
+						error:
+							"Registration pricing is not configured",
+					},
+					503,
+					{
+						...corsHeaders,
+						"Cache-Control": "no-store",
+					},
+				);
+			}
+
+			return json(
+				{
+					ok: true,
+					amountDueCents,
+					currency: "usd",
+				},
+				200,
+				{
+					...corsHeaders,
+					"Cache-Control": "public, max-age=300",
+				},
+			);
+		}
 
 		if (
 			request.method === "POST" &&
 			url.pathname === "/registrations/payment-report"
 		) {
 			return handlePaymentReport(request, env, corsHeaders);
+		}
+
+		if (
+			request.method === "POST" &&
+			url.pathname ===
+				"/registrations/resend-payment-link"
+		) {
+			return handleResendPaymentLink(
+				request,
+				env,
+				corsHeaders,
+			);
 		}
 
 		if (
@@ -2027,7 +2365,9 @@ export default {
 					result.paymentAccessToken,
 				);
 
-				if(!result.duplicate) {
+				let emailSent = false;
+
+				if (!result.duplicate) {
 					try {
 						await sendPaymentLinkEmail(env, {
 							email,
@@ -2038,11 +2378,47 @@ export default {
 								result.registration.amountDueCents,
 							paymentUrl,
 						});
+
+						emailSent = true;
+					} catch(error) {
+						console.error(
+							"Payment-link email failed",
+							{
+								name: error?.name,
+								message: error?.message,
+							},
+						);
+					}
+				}
+
+				if (emailSent) {
+					const emailSentAt =
+						Math.floor(Date.now() / 1000);
+
+					try {
+						await env.ORDERS_DB.prepare(
+							`
+								UPDATE registrations
+								SET
+									registration_email_sent_at = ?,
+									updated_at = ?
+								WHERE submission_key = ?
+							`,
+						)
+							.bind(
+								emailSentAt,
+								emailSentAt,
+								submissionKey,
+							)
+							.run();
 					} catch (error) {
-						console.error("Payment-link email failed", {
-							name: error?.name,
-							message: error?.message,
-						});
+						console.error(
+							"Registration email timestamp failed",
+							{
+								name: error?.name,
+								message: error?.message,
+							},
+						);
 					}
 				}
 
@@ -2050,12 +2426,13 @@ export default {
 					{
 						ok: true,
 						duplicate: result.duplicate,
-						paymentUrl,
+						emailSent,
 						registration: result.registration,
 					},
 					result.duplicate ? 200 : 201,
 					responseHeaders,
 				);
+
 			} catch (error) {
 				if (error?.code === "SUBMISSION_KEY_REUSED") {
 					return json(

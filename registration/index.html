@@ -116,6 +116,10 @@
             Your registration is confirmed after payment is verified.
           </p>
 
+          <p id="prereg-cost" class="prereg-cost">
+            Pre-registration cost: $25.00
+          </p>
+
           <form id="prereg-form" class="prereg-form" method="post">
             <label>
               Last name *
@@ -315,11 +319,20 @@
               type="submit"
               disabled
             >
-              Continue to payment
+              Submit pre-registration
             </button>
           </form>
 
           <p id="prereg-feedback" role="status"></p>
+
+          <button
+            id="prereg-resend"
+            class="button"
+            type="button"
+            hidden
+          >
+            Resend payment email
+          </button>
         </div>
       </section>
 

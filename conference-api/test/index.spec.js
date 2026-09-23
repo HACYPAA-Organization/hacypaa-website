@@ -9,6 +9,7 @@ import {
 import worker, {
 	buildPrintifyOrderPayload,
 	handlePaymentReport,
+	handleResendPaymentLink,
 	sendPaymentConfirmationEmail,
 	sendRegistrationEmail,
  } from "../src/index.js";
@@ -843,4 +844,534 @@ describe("HACYPAA checkout API", () => {
 			"REGISTRATION CONFIRMED",
 		);
 	});
+
+	it("sends the payment link by email without exposing it in the registration response", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    id: "email_payment_link_123",
+                }),
+                {
+                    status: 200,
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                },
+            ),
+        );
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const statementRun = vi.fn().mockResolvedValue({
+            meta: { changes: 1 },
+        });
+
+        const prepare = vi.fn((sql) => ({
+            bind: vi.fn((...values) => ({
+                sql,
+                values,
+                run: statementRun,
+            })),
+        }));
+
+        const batch = vi.fn().mockResolvedValue([
+            {
+                meta: { changes: 1 },
+            },
+            {
+                meta: { changes: 1 },
+            },
+            {
+                results: [
+                    {
+                        registrationCode:
+                            "HACXI-ABCDEF123456",
+                        status: "awaiting_payment",
+                        amountDueCents: 2500,
+                        currency: "usd",
+                        firstName: "Zach",
+                        lastName: "Walker",
+                        email: "zach@example.com",
+                    },
+                ],
+            },
+        ]);
+
+        const response = await worker.fetch(
+            new Request(
+                "http://example.com/registrations",
+                {
+                    method: "POST",
+                    headers: {
+                        Origin: allowedOrigin,
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        submissionKey:
+                            "123e4567-e89b-42d3-a456-426614174000",
+                        firstName: "Zach",
+                        lastName: "Walker",
+                        email: "zach@example.com",
+                        phoneNumber: "8168534193",
+                        sobrietyDate: "2020-01-01",
+                        location:
+                            "Kansas City, Missouri",
+                        homeGroup: "Test Home Group",
+                        fellowshipAa: true,
+                        fellowshipAlanon: false,
+                        accommodationMobility: false,
+                        accommodationAsl: false,
+                        accommodationDetails: "",
+                        volunteerInterest: true,
+                        scholarshipDonation: false,
+                        preferredPaymentMethod:
+                            "venmo",
+                    }),
+                },
+            ),
+            {
+                ORDERS_DB: {
+                    prepare,
+                    batch,
+                },
+                PREREG_PRICE_CENTS: "2500",
+                PUBLIC_SITE_URL:
+                    "https://hacypaa.us",
+                RESEND_API_KEY: "re_test_key",
+                PREREG_FROM_EMAIL:
+                    "HACYPAA XI Registration <onboarding@resend.dev>",
+            },
+        );
+
+        expect(response.status).toBe(201);
+
+        const data = await response.json();
+
+        expect(data).toMatchObject({
+            ok: true,
+            duplicate: false,
+            emailSent: true,
+            registration: {
+                registrationCode:
+                    "HACXI-ABCDEF123456",
+                status: "awaiting_payment",
+                amountDueCents: 2500,
+                currency: "usd",
+            },
+        });
+
+        expect(data).not.toHaveProperty("paymentUrl");
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        const [, requestOptions] =
+            fetchMock.mock.calls[0];
+        const email = JSON.parse(
+            requestOptions.body,
+        );
+
+        expect(email.text).toContain(
+            "https://hacypaa.us/payment/?token=",
+        );
+        expect(email.text).toContain(
+            "Amount due: $25.00",
+        );
+    });
+
+    it("resends the payment email and rotates the private token", async () => {
+        const oldTokenHash = "b".repeat(64);
+        const statements = [];
+
+        const prepare = vi.fn((sql) => ({
+            bind: vi.fn((...values) => {
+                const statement = {
+                    sql,
+                    values,
+                };
+
+                statements.push(statement);
+
+                const normalizedSql =
+                    sql.replace(/\s+/g, " ").trim();
+
+                if (
+                    normalizedSql.startsWith(
+                        "SELECT",
+                    )
+                ) {
+                    return {
+                        first: vi.fn().mockResolvedValue({
+                            id: 42,
+                            registrationCode:
+                                "HACXI-ABCDEF123456",
+                            firstName: "Zach",
+                            email:
+                                "zach@example.com",
+                            status:
+                                "awaiting_payment",
+                            amountDueCents: 2500,
+                            currency: "usd",
+                            currentTokenHash:
+                                oldTokenHash,
+                            registrationEmailSentAt:
+                                0,
+                        }),
+                    };
+                }
+
+                return {
+                    run: vi.fn().mockResolvedValue({
+                        meta: { changes: 1 },
+                    }),
+                };
+            }),
+        }));
+
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    id: "email_resend_123",
+                }),
+                {
+                    status: 200,
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                },
+            ),
+        );
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const response =
+            await handleResendPaymentLink(
+                new Request(
+                    "http://example.com/registrations/resend-payment-link",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+                        body: JSON.stringify({
+                            submissionKey:
+                                "123e4567-e89b-42d3-a456-426614174000",
+                            email:
+                                "zach@example.com",
+                        }),
+                    },
+                ),
+                {
+                    ORDERS_DB: { prepare },
+                    PUBLIC_SITE_URL:
+                        "https://hacypaa.us",
+                    RESEND_API_KEY:
+                        "re_test_key",
+                    PREREG_FROM_EMAIL:
+                        "HACYPAA XI Registration <onboarding@resend.dev>",
+                },
+                {},
+            );
+
+        expect(response.status).toBe(200);
+
+        const data = await response.json();
+
+        expect(data).toMatchObject({
+            ok: true,
+            emailSent: true,
+            registration: {
+                registrationCode:
+                    "HACXI-ABCDEF123456",
+                status: "awaiting_payment",
+                amountDueCents: 2500,
+                currency: "usd",
+            },
+        });
+
+        expect(data).not.toHaveProperty("paymentUrl");
+
+        const rotationStatement =
+            statements.find(({ sql }) => {
+                const normalizedSql =
+                    sql.replace(/\s+/g, " ");
+
+                return normalizedSql.includes(
+                    "SET payment_access_token_hash = ?",
+                ) &&
+                    normalizedSql.includes(
+                        "status = 'awaiting_payment'",
+                    );
+            });
+
+        expect(rotationStatement).toBeDefined();
+
+        const newTokenHash =
+            rotationStatement.values[0];
+
+        expect(newTokenHash).toMatch(
+            /^[0-9a-f]{64}$/,
+        );
+        expect(newTokenHash).not.toBe(
+            oldTokenHash,
+        );
+        expect(rotationStatement.values[3]).toBe(
+            oldTokenHash,
+        );
+
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        const [, requestOptions] =
+            fetchMock.mock.calls[0];
+        const email = JSON.parse(
+            requestOptions.body,
+        );
+
+        expect(email.text).toContain(
+            "https://hacypaa.us/payment/?token=",
+        );
+        expect(
+            requestOptions.headers[
+                "Idempotency-Key"
+            ],
+        ).toMatch(
+            /^prereg-payment-link\/HACXI-ABCDEF123456\/[0-9a-f]{16}$/,
+        );
+    });
+
+    it("rate limits payment-email resend requests", async () => {
+        const nowSpy = vi
+            .spyOn(Date, "now")
+            .mockReturnValue(1700000000000);
+
+        const fetchMock = vi.fn();
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const first = vi.fn().mockResolvedValue({
+            id: 42,
+            registrationCode:
+                "HACXI-ABCDEF123456",
+            firstName: "Zach",
+            email: "zach@example.com",
+            status: "awaiting_payment",
+            amountDueCents: 2500,
+            currency: "usd",
+            currentTokenHash: "b".repeat(64),
+            registrationEmailSentAt:
+                1699999970,
+        });
+
+        const prepare = vi.fn(() => ({
+            bind: vi.fn(() => ({
+                first,
+            })),
+        }));
+
+        try {
+            const response =
+                await handleResendPaymentLink(
+                    new Request(
+                        "http://example.com/registrations/resend-payment-link",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                            body: JSON.stringify({
+                                submissionKey:
+                                    "123e4567-e89b-42d3-a456-426614174000",
+                                email:
+                                    "zach@example.com",
+                            }),
+                        },
+                    ),
+                    {
+                        ORDERS_DB: { prepare },
+                    },
+                    {},
+                );
+
+            expect(response.status).toBe(429);
+            expect(
+                response.headers.get(
+                    "Retry-After",
+                ),
+            ).toBe("30");
+
+            expect(await response.json()).toEqual({
+                ok: false,
+                emailSent: false,
+                retryAfter: 30,
+                error:
+                    "Please wait 30 seconds before resending",
+            });
+
+            expect(fetchMock).not.toHaveBeenCalled();
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
+    it("restores the previous payment token when resend email delivery fails", async () => {
+        const oldTokenHash = "c".repeat(64);
+        const statements = [];
+
+        const prepare = vi.fn((sql) => ({
+            bind: vi.fn((...values) => {
+                const statement = {
+                    sql,
+                    values,
+                };
+
+                statements.push(statement);
+
+                const normalizedSql =
+                    sql.replace(/\s+/g, " ").trim();
+
+                if (
+                    normalizedSql.startsWith(
+                        "SELECT",
+                    )
+                ) {
+                    return {
+                        first: vi.fn().mockResolvedValue({
+                            id: 42,
+                            registrationCode:
+                                "HACXI-ABCDEF123456",
+                            firstName: "Zach",
+                            email:
+                                "zach@example.com",
+                            status:
+                                "awaiting_payment",
+                            amountDueCents: 2500,
+                            currency: "usd",
+                            currentTokenHash:
+                                oldTokenHash,
+                            registrationEmailSentAt:
+                                0,
+                        }),
+                    };
+                }
+
+                return {
+                    run: vi.fn().mockResolvedValue({
+                        meta: { changes: 1 },
+                    }),
+                };
+            }),
+        }));
+
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    message:
+                        "Email service unavailable",
+                }),
+                {
+                    status: 500,
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                },
+            ),
+        );
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const consoleError = vi
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
+
+        try {
+            const response =
+                await handleResendPaymentLink(
+                    new Request(
+                        "http://example.com/registrations/resend-payment-link",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                            body: JSON.stringify({
+                                submissionKey:
+                                    "123e4567-e89b-42d3-a456-426614174000",
+                                email:
+                                    "zach@example.com",
+                            }),
+                        },
+                    ),
+                    {
+                        ORDERS_DB: { prepare },
+                        PUBLIC_SITE_URL:
+                            "https://hacypaa.us",
+                        RESEND_API_KEY:
+                            "re_test_key",
+                        PREREG_FROM_EMAIL:
+                            "HACYPAA XI Registration <onboarding@resend.dev>",
+                    },
+                    {},
+                );
+
+            expect(response.status).toBe(502);
+
+            expect(await response.json()).toEqual({
+                ok: false,
+                emailSent: false,
+                error:
+                    "The registration is saved, but the email could not be resent",
+            });
+
+            const rotationStatement =
+                statements.find(({ sql }) => {
+                    const normalizedSql =
+                        sql.replace(/\s+/g, " ");
+
+                    return normalizedSql.includes(
+                        "status = 'awaiting_payment'",
+                    ) &&
+                        normalizedSql.includes(
+                            "SET payment_access_token_hash = ?",
+                        );
+                });
+
+            expect(rotationStatement).toBeDefined();
+
+            const rotatedTokenHash =
+                rotationStatement.values[0];
+
+            const rollbackStatement =
+                statements.find(
+                    ({ sql, values }) => {
+                        const normalizedSql =
+                            sql.replace(/\s+/g, " ");
+
+                        return (
+                            normalizedSql.includes(
+                                "SET payment_access_token_hash = ?",
+                            ) &&
+                            !normalizedSql.includes(
+                                "status = 'awaiting_payment'",
+                            ) &&
+                            values[0] ===
+                                oldTokenHash
+                        );
+                    },
+                );
+
+            expect(rollbackStatement).toBeDefined();
+            expect(rollbackStatement.values[2]).toBe(
+                42,
+            );
+            expect(rollbackStatement.values[3]).toBe(
+                rotatedTokenHash,
+            );
+        } finally {
+            consoleError.mockRestore();
+        }
+    });
 });
