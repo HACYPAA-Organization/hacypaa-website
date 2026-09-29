@@ -7,6 +7,7 @@ from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SKIPPED_DIRECTORIES = {".git", "node_modules"}
 
 VOID_ELEMENTS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -147,6 +148,11 @@ def parse_pages():
     parsed = {}
 
     for path in sorted(ROOT.rglob("*.html")):
+        relative_parts = path.relative_to(ROOT).parts
+
+        if SKIPPED_DIRECTORIES.intersection(relative_parts):
+            continue
+
         parser = SiteParser(path)
         parser.feed(path.read_text(encoding="utf-8"))
         parser.close()

@@ -1076,6 +1076,28 @@ describe("HACYPAA checkout API", () => {
 
         expect(response.status).toBe(200);
 
+        const lookupStatement =
+            statements.find(({ sql }) =>
+                sql
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .startsWith("SELECT"),
+            );
+
+        expect(lookupStatement).toBeDefined();
+
+        const lookupSql =
+            lookupStatement.sql
+                .replace(/\s+/g, " ")
+                .trim();
+
+        expect(lookupSql).toContain(
+            "payment_access_token_hash AS currentTokenHash",
+        );
+        expect(lookupSql).toContain(
+            "WHERE submission_key = ? AND email = ?",
+        );
+
         const data = await response.json();
 
         expect(data).toMatchObject({

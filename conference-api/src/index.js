@@ -1123,10 +1123,10 @@ export async function handleResendPaymentLink(
 				status,
 				amount_due_cents AS amountDueCents,
 				currency,
-				payment_access_token_has AS currentTokenHash,
+				payment_access_token_hash AS currentTokenHash,
 				registration_email_sent_at AS registrationEmailSentAt
 			FROM registrations
-			WHERE sumbission_key = ? AND email = ?
+			WHERE submission_key = ? AND email = ?
 			LIMIT 1
 		`,
 	)
@@ -1602,8 +1602,8 @@ export async function handleAdminRegistrations(
 				sobriety_date AS sobrietyDate,
 				location,
 				home_group AS homeGroup,
-				fellowship_aa AS felloshipAa,
-				fellowship_alanon AS fellowshipAlaon,
+				fellowship_aa AS fellowshipAa,
+				fellowship_alanon AS fellowshipAlanon,
 				accommodation_mobility AS accommodationMobility,
 				accommodation_asl AS accommodationAsl,
 				accommodation_details AS accommodationDetails,

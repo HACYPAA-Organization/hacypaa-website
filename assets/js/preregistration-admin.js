@@ -83,8 +83,9 @@
     };
 
     const paymentLabels = {
-        venmo: "Venmo",
+        cash: "Cash",
         cash_app: "Cash App",
+        venmo: "Venmo",
     };
 
     function formatDate(unixSeconds) {
@@ -172,10 +173,10 @@
             );
 
             const fellowships = [
-                registration.felloshipAa
+                registration.fellowshipAa
                     ? "Alcoholics Anonymous"
                     : null,
-                registration.felloshipAlanon
+                registration.fellowshipAlanon
                     ? "Al-Anon, Alateen, or AFG"
                     : null,
             ]
@@ -207,7 +208,7 @@
                         registration.volunteerInterest ? "Yes" : "No"
                     }`,
                     `Scholarship donation: ${
-                        registration.scholashipDonation ? "Yes" : "No"
+                        registration.scholarshipDonation ? "Yes" : "No"
                     }`,
                     `Preferred payment: ${
                         paymentLabels[
