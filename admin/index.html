@@ -64,15 +64,23 @@
           </p>
 
           <form id="admin-login-form" class="prereg-form">
-            <label for="admin-token">
-                Coordinator access token
-            </label>
+            <label for="admin-email">Email address</label>
 
             <input
-              id="admin-token"
-              name="adminToken"
+              id="admin-email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              required
+            >
+
+            <label for="admin-password">Password</label>
+
+            <input
+              id="admin-password"
+              name="password"
               type="password"
-              autocomplete="off"
+              autocomplete="current-password"
               required
             >
 
@@ -81,15 +89,148 @@
               class="button"
               type="submit"
             >
-              Open dashboard
+              Sign in
+            </button>
+
+            <button
+              id="admin-reset-request"
+              class="button"
+              type="button"
+            >
+                Reset password
+            </button>
+          </form>
+
+          <form
+            id="admin-password-form"
+            class="prereg-form"
+            hidden
+          >
+            <h2>Set your admin password</h2>
+
+            <p>
+              Use at least 12 characters and include letters,
+              numbers, and symbols.
+            </p>
+
+            <label for="admin-new-password">
+              New password
+            </label>
+
+            <input
+              id="admin-new-password"
+              name="newPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="12"
+              required
+            >
+
+            <label for="admin-confirm-password">
+              Confirm password
+            </label>
+
+            <input
+              id="admin-confirm-password"
+              name="confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="12"
+              required
+            >
+
+            <button
+              id="admin-password-submit"
+              class="button"
+              type="submit"
+            >
+              Save password
+            </button>
+          </form>
+
+          <section id="admin-mfa-enrollment" hidden>
+            <h2>Secure your admin account</h2>
+
+            <p>
+              Scan this QR code with your authenticator app,
+              then enter the six-digit code it generates.
+            </p>
+
+            <img
+              id="admin-mfa-qr"
+              alt="Authenticator setup QR code"
+            >
+
+            <p>
+              Manual setup code:
+              <code id="admin-mfa-secret"></code>
+            </p>
+
+            <form
+              id="admin-mfa-enrollment-form"
+              class="prereg-form"
+            >
+              <label for="admin-mfa-enrollment-code">
+                Authenticator code
+              </label>
+
+              <input
+                id="admin-mfa-enrollment-code"
+                name="code"
+                type="text"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                required
+              >
+
+              <button
+                id="admin-mfa-enrollment-submit"
+                class="button"
+                type="submit"
+              >
+                Enable authenticator
+              </button>
+            </form>
+          </section>
+
+          <form
+            id="admin-mfa-challenge-form"
+            class="prereg-form"
+            hidden
+          >
+            <h2>Authenticator verification</h2>
+
+            <label for="admin-mfa-challenge-code">
+              Enter your six-digit code
+            </label>
+
+            <input
+              id="admin-mfa-challenge-code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              required
+            >
+
+            <button
+              id="admin-mfa-challenge-submit"
+              class="button"
+              type="submit"
+            >
+              Verify
             </button>
           </form>
 
           <p
             id="admin-login-feedback"
             role="status"
+            aria-live="polite"
           ></p>
-
           <section id="admin-dashboard" hidden>
             <div class="admin-toolbar">
               <h2>Registrations</h2>
@@ -148,6 +289,14 @@
     </main>
 
     <script src="/assets/js/script.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"
+    ></script>
+    <script src="/assets/js/supabase-config.js"></script>
+    <script
+      src="/assets/js/supabase-admin-auth.js"
+      defer
+    ></script>
     <script
       src="../assets/js/preregistration-admin.js"
       defer

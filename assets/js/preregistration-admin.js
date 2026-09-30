@@ -8,12 +8,7 @@
         ? "http://127.0.0.1:8787"
         : "https://checkout-api.tgp-services.workers.dev";
 
-    const loginForm =
-        document.querySelector("#admin-login-form");
-    const tokenInput =
-        document.querySelector("#admin-token");
-    const loginButton =
-        document.querySelector("#admin-login-submit");
+    const adminAuth = window.HACYPAA_ADMIN_AUTH;
     const loginFeedback =
         document.querySelector("#admin-login-feedback");
 
@@ -33,9 +28,7 @@
         document.querySelector("#admin-empty");
 
     if (
-        !loginForm ||
-        !tokenInput ||
-        !loginButton ||
+        !adminAuth ||
         !loginFeedback ||
         !dashboard ||
         !refreshButton ||
@@ -48,18 +41,11 @@
         return;
     }
 
-    let adminToken =
-        sessionStorage.getItem("hacypaaPreregAdminToken") || "";
-
-    function showLogin(message = "") {
-        loginForm.hidden = false;
-        dashboard.hidden = true;
-        tokenInput.value = "";
-        loginFeedback.textContent = message;
+    function showlogin(message = "") {
+        adminAuth.showlogin(message);
     }
 
-    function showDashboard () {
-        loginForm.hidden = true;
+    function showDashboard() {
         dashboard.hidden = false;
         loginFeedback.textContent = "";
     }
@@ -336,33 +322,47 @@
     }
 
     async function loadRegistrations() {
-        if (!adminToken) {
-            showLogin();
-            return;
-        }
-
         refreshButton.disabled = true;
         loginFeedback.textContent = "Checking access...";
         setFeedback("Loading registrations...", "pending");
 
         try {
+            const adminToken =
+                await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin(
+                    "Your admin session has expired.",
+                );
+                return;
+            }
+
             const response = await fetch(
                 apiBase + "/admin/registrations",
                 {
                     headers: {
-                        Authorization: `Bearer ${adminToken}`,
+                        Authorization:
+                        `Bearer ${adminToken}`,
                     },
                 },
             );
 
-            const data = await response.json().catch(() => null);
+            const data = await response
+                .json()
+                .catch(() => null);
 
-            if (response.status === 401) {
-                adminToken = "";
-                sessionStorage.removeItem(
-                    "hacypaaPreregAdminToken",
-                );
-                showLogin("That access token was not accepted.");
+            if (
+                response.status === 401 ||
+                response.status === 403
+            ) {
+                const message =
+                    response.status === 403
+                        ? data?.error ||
+                          "This account in not authorized."
+                        : "Your admin session has expired.";
+
+                await adminAuth.signOut();
+                showlogin(message);
                 return;
             }
 
@@ -377,8 +377,9 @@
                 );
             }
 
-            renderRegistrations(data.registrations);
+            renderRegistrations(data.registration);
             showDashboard();
+
             setFeedback(
                 "Registration list is current.",
                 "success",
@@ -414,6 +415,16 @@
         );
 
         try {
+            const adminToken =
+                await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin(
+                    "Your admin session has expired.",
+                );
+                return;
+            }
+
             const response = await fetch(
                 apiBase + "/admin/registrations/status",
                 {
@@ -435,17 +446,18 @@
                 .json()
                 .catch(() => null);
 
-            if (response.status === 401) {
-                adminToken = "";
+            if (
+                response.status === 401 ||
+                response.status === 403
+            ) {
+                const message =
+                    response.status === 403
+                        ? data?.error ||
+                          "This account is not authorized."
+                        : "Your admin session has expired.";
 
-                sessionStorage.removeItem(
-                    "hacypaaPreregAdminToken",
-                );
-
-                showLogin(
-                    "Your admin session has expired.",
-                );
-
+                await adminAuth.signOut();
+                showLogin(message);
                 return;
             }
 
@@ -455,7 +467,7 @@
             ) {
                 throw new Error(
                     data?.error ||
-                    "Could not update registration.",
+                        "Could not update registration.",
                 );
             }
 
@@ -477,36 +489,6 @@
             button.textContent = originalText;
         }
     }
-
-    loginForm.addEventListener(
-        "submit",
-        async function (event) {
-            event.preventDefault();
-
-            if (!loginForm.reportValidity()) {
-                return;
-            }
-
-            adminToken = tokenInput.value.trim();
-
-            if (!adminToken) {
-                return;
-            }
-
-            loginButton.disabled = true;
-            loginButton.textContent = "Opening...";
-
-            sessionStorage.setItem(
-                "hacypaaPreregAdminToken",
-                adminToken,
-            );
-
-            await loadRegistrations();
-
-            loginButton.disabled = false;
-            loginButton.textContent = "Open dashboard";
-        },
-    );
 
     refreshButton.addEventListener("click", function () {
         loadRegistrations();
@@ -564,22 +546,18 @@
         },
     );
 
-    logoutButton.addEventListener("click", function () {
-        adminToken = "";
+    logoutButton.addEventListener(
+        "click",
+        async function () {
+            tableBody.replaceChildren();
+            summary.textContent = "";
+            setFeedback("");
 
-        sessionStorage.removeItem(
-            "hacypaaPreregAdminToken",
-        );
+            await adminAuth.signOut();
+        },
+    );
 
-        tableBody.replaceChildren();
-        summary.textContent = "";
-        setFeedback("");
-        showLogin("Dashboard locked.");
-    });
-
-    if (adminToken) {
+    adminAuth.onAuthenticated(function () {
         loadRegistrations();
-    } else {
-        showLogin();
-    }
+    });
 })();
