@@ -1821,6 +1821,11 @@ async function handleAdminRegistrationStatus(
 	env,
 	corsHeaders,
 ) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
 	const adminAuthorization =
 		await authorizePreregAdmin(request, env);
 
@@ -1943,7 +1948,7 @@ async function handleAdminRegistrationStatus(
 		return Response.json(
 			{
 				ok: false,
-				error: "REgistration not found.",
+				error: "Registration not found.",
 			},
 			{
 				status: 404,

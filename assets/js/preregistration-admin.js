@@ -41,8 +41,8 @@
         return;
     }
 
-    function showlogin(message = "") {
-        adminAuth.showlogin(message);
+    function showLogin(message = "") {
+        adminAuth.showLogin(message);
     }
 
     function showDashboard() {
@@ -264,21 +264,6 @@
                     ),
                 );
             } else if (
-                registration.status === "payment_not_found"
-            ) {
-                actionsCell.append(
-                    createActionButton(
-                        "Confirm",
-                        "confirmed",
-                        "success",
-                    ),
-                    createActionButton(
-                        "Cancel",
-                        "cancelled",
-                        "danger",
-                    ),
-                );
-            } else if (
                 registration.status === "awaiting_payment"
             ) {
                 actionsCell.append(
@@ -358,11 +343,11 @@
                 const message =
                     response.status === 403
                         ? data?.error ||
-                          "This account in not authorized."
+                          "This account is not authorized."
                         : "Your admin session has expired.";
 
                 await adminAuth.signOut();
-                showlogin(message);
+                showLogin(message);
                 return;
             }
 
@@ -377,7 +362,7 @@
                 );
             }
 
-            renderRegistrations(data.registration);
+            renderRegistrations(data.registrations);
             showDashboard();
 
             setFeedback(
@@ -433,7 +418,7 @@
                         Authorization:
                             `Bearer ${adminToken}`,
                         "Content-Type":
-                            "applications/json",
+                            "application/json",
                     },
                     body: JSON.stringify({
                         registrationCode,

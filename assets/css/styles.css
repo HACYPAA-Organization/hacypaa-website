@@ -1,3 +1,7 @@
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --ink: #0b0b0a;
   --paper: #f2eddf;
