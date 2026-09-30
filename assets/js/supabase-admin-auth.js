@@ -157,10 +157,16 @@
     }
 
     function getAuthLinkType() {
-        const search = new URLSearchParams(window.location.search);
+        const search = new URLSearchParams(
+            window.location.search
+        );
         const hash = new URLSearchParams(
             window.location.hash.replace(/^#/, ""),
         );
+
+        if (search.get("flow") === "password-reset") {
+            return "recovery";
+        }
 
         return search.get("type") || hash.get("type") || "";
     }
@@ -350,10 +356,18 @@
         setFeedback("Sending a password-reset email...", "pending");
 
         try {
-            const redirectTo = new URL(
+            const redirectUrl = new URL(
                 "/admin/",
                 window.location.origin,
-            ).href;
+            );
+
+            redirectUrl.searchParams.set(
+                "flow",
+                "password-reset",
+            );
+
+            const redirectTo = redirectUrl.href;
+
             const result = await client.auth.resetPasswordForEmail(
                 emailInput.value.trim(),
                 { redirectTo },
