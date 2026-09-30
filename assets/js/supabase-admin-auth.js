@@ -265,7 +265,8 @@
         routing = true;
 
         try {
-            const { data, error } = await client.auth.getSession();
+            const { data, error } =
+                await client.auth.getSession();
 
             if (error) {
                 throw error;
@@ -277,23 +278,38 @@
             }
 
             const linkType = getAuthLinkType();
-
-            if (
+            const requiresPassword =
                 options.forcePassword ||
                 passwordFlow ||
                 linkType === "invite" ||
-                linkType === "recovery"
-            ) {
+                linkType === "recovery";
+
+            if (requiresPassword) {
                 passwordFlow = true;
-                showPasswordForm();
-                return;
             }
 
             const assurance =
-                await client.auth.mfa.getAuthenticatorAssuranceLevel();
+                await client.auth.mfa
+                    .getAuthenticatorAssuranceLevel();
 
             if (assurance.error) {
                 throw assurance.error;
+            }
+
+            if (
+                passwordFlow &&
+                assurance.data.currentLevel !== "aal2" &&
+                assurance.data.nextLevel === "aal2"
+            ) {
+                showChallenge(
+                    "Verify your authenticator before changing your password.",
+                );
+                return;
+            }
+
+            if (passwordFlow) {
+                showPasswordForm();
+                return;
             }
 
             if (assurance.data.currentLevel === "aal2") {
@@ -309,7 +325,8 @@
             await beginEnrollment();
         } catch (error) {
             showLogin(
-                error.message || "Could not verify the admin session.",
+                error.message ||
+                    "Could not verify the admin session.",
             );
         } finally {
             routing = false;
@@ -482,6 +499,12 @@
                 factor.id,
                 challengeCodeInput.value.trim(),
             );
+
+            if (passwordFlow) {
+                showPasswordForm();
+                return;
+            }
+
             notifyAuthenticated();
         } catch (error) {
             setFeedback(
@@ -502,7 +525,11 @@
 
         if (event === "PASSWORD_RECOVERY") {
             passwordFlow = true;
-            showPasswordForm();
+            window.setTimeout(() => {
+                void routeSession({
+                    forcePassword: true,
+                });
+            }, 0);
         }
     });
 
