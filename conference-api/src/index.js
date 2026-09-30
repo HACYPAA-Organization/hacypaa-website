@@ -1384,23 +1384,12 @@ function getSupabaseJwks(supabaseUrl) {
 
 export async function authorizePreregAdmin(request, env) {
 	const token = getBearerToken(request);
-	const legacyToken = cleanText(
-		env.PREREG_ADMIN_TOKEN,
-	);
 
 	if (!token) {
 		return {
 			ok: false,
 			status: 401,
 			error: "Unauthorized",
-		};
-	}
-
-	if (legacyToken && token === legacyToken) {
-		return {
-			ok: true,
-			authType: "legacy",
-			role: "super_admin",
 		};
 	}
 
