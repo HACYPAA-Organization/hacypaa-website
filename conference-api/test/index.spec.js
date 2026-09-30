@@ -7,14 +7,60 @@ import {
 	vi
 } from "vitest";
 import worker, {
+	authorizePreregAdmin,
 	buildPrintifyOrderPayload,
 	handlePaymentReport,
 	handleResendPaymentLink,
 	sendPaymentConfirmationEmail,
 	sendRegistrationEmail,
  } from "../src/index.js";
+import {
+	exportJWK,
+	generateKeyPair,
+	SignJWT,
+} from "jose";
 
 const allowedOrigin = "http://127.0.0.1:5500";
+
+async function createSupabaseTestToken({
+	supabaseUrl,
+	aal = "aal2",
+	userId = "123e4567-e89b-42d3-a456-426614174000",
+}) {
+	const { publicKey, privateKey } =
+		await generateKeyPair("ES256", {
+			extractable: true,
+		});
+	const keyId = "supabase-test-key";
+	const jwk = await exportJWK(publicKey);
+
+	jwk.kid = keyId;
+	jwk.alg = "ES256";
+	jwk.use = "sig";
+
+	const token = await new SignJWT ({
+		role: "authenticated",
+		aal,
+	})
+		.setProtectedHeader({
+			alg: "ES256",
+			kid: keyId,
+		})
+		.setIssuer(`${supabaseUrl}/auth/v1`)
+		.setAudience("authenticated")
+		.setSubject(userId)
+		.setIssuedAt()
+		.setExpirationTime("5m")
+		.sign(privateKey);
+
+	return {
+		jwk,
+		token,
+		userId,
+	};
+}
+
+
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -1396,4 +1442,245 @@ describe("HACYPAA checkout API", () => {
             consoleError.mockRestore();
         }
     });
+
+	it("authorizes an allowlisted Supabase admin with aal2", async () => {
+		const supabaseUrl =
+			"https://allowed-admin.supabase.co";
+		const { jwk, token, userId } =
+			await createSupabaseTestToken({
+				supabaseUrl,
+			});
+
+		const fetchMock = vi.fn(
+			async (input, options = {}) => {
+				const url = String(input);
+
+				if (
+					url.endsWith(
+						"/auth/v1/.well-known/jwks.json",
+					)
+				) {
+					return new Response(
+						JSON.stringify({
+							keys: [jwk],
+						}),
+						{
+							status: 200,
+							headers: {
+								"Content-Type":
+									"application/json",
+							},
+						},
+					);
+				}
+
+				if (
+					url.includes(
+						"rest/v1/admin_users",
+					)
+				) {
+					expect(options.headers).toMatchObject({
+						apikey: "sb_secret_test",
+					});
+
+					return new Response(
+						JSON.stringify([
+							{
+								user_id: userId,
+								role: "prereg_admin",
+							},
+						]),
+						{
+							status: 200,
+							headers: {
+								"Content-Type":
+									"application/json",
+							},
+						},
+					);
+				}
+
+				throw new Error(
+					`Unexpected fetch: ${url}`,
+				);
+			},
+		);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result =
+			await authorizePreregAdmin(
+				new Request(
+                    "https://example.com/admin/registrations",
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+                    },
+                ),
+                {
+                    SUPABASE_URL: supabaseUrl,
+                    SUPABASE_SECRET_KEY:
+                        "sb_secret_test",
+                },
+            );
+
+        expect(result).toMatchObject({
+            ok: true,
+            authType: "supabase",
+            userId,
+            role: "prereg_admin",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects a Supabase admin session that has not completed MFA", async () => {
+        const supabaseUrl =
+            "https://aal1-admin.supabase.co";
+        const { jwk, token } =
+            await createSupabaseTestToken({
+                supabaseUrl,
+                aal: "aal1",
+            });
+
+        const fetchMock = vi.fn(
+            async (input) => {
+                const url = String(input);
+
+                if (
+                    url.endsWith(
+                        "/auth/v1/.well-known/jwks.json",
+                    )
+                ) {
+                    return new Response(
+                        JSON.stringify({
+                            keys: [jwk],
+                        }),
+                        {
+                            status: 200,
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                        },
+                    );
+                }
+
+                throw new Error(
+                    `Unexpected fetch: ${url}`,
+                );
+            },
+        );
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const result =
+            await authorizePreregAdmin(
+                new Request(
+                    "https://example.com/admin/registrations",
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+                    },
+                ),
+                {
+                    SUPABASE_URL: supabaseUrl,
+                    SUPABASE_SECRET_KEY:
+                        "sb_secret_test",
+                },
+            );
+
+        expect(result).toMatchObject({
+            ok: false,
+            status: 403,
+            error:
+                "Multi-factor authentication required",
+        });
+        expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("rejects a Supabase user who is not on the active admin allowlist", async () => {
+        const supabaseUrl =
+            "https://unlisted-admin.supabase.co";
+        const { jwk, token } =
+            await createSupabaseTestToken({
+                supabaseUrl,
+            });
+
+        const fetchMock = vi.fn(
+            async (input) => {
+                const url = String(input);
+
+                if (
+                    url.endsWith(
+                        "/auth/v1/.well-known/jwks.json",
+                    )
+                ) {
+                    return new Response(
+                        JSON.stringify({
+                            keys: [jwk],
+                        }),
+                        {
+                            status: 200,
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                        },
+                    );
+                }
+
+                if (
+                    url.includes(
+                        "/rest/v1/admin_users",
+                    )
+                ) {
+                    return new Response(
+                        JSON.stringify([]),
+                        {
+                            status: 200,
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                        },
+                    );
+                }
+
+                throw new Error(
+                    `Unexpected fetch: ${url}`,
+                );
+            },
+        );
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        const result =
+            await authorizePreregAdmin(
+                new Request(
+                    "https://example.com/admin/registrations",
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+                    },
+                ),
+                {
+                    SUPABASE_URL: supabaseUrl,
+                    SUPABASE_SECRET_KEY:
+                        "sb_secret_test",
+                },
+            );
+
+        expect(result).toMatchObject({
+            ok: false,
+            status: 403,
+            error: "Forbidden",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
 });

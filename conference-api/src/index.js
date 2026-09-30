@@ -1,4 +1,9 @@
 import Stripe from "stripe";
+import {
+	createRemoteJWKSet,
+	errors,
+	jwtVerify,
+} from "jose";
 
 const ALLOWED_ORIGINS = new Set([
 	"http://127.0.0.1:5500",
@@ -6,6 +11,8 @@ const ALLOWED_ORIGINS = new Set([
 	"https://hacypaa.us",
 	"https://www.hacypaa.us",
 ]);
+
+const SUPABASE_JWKS = new Map();
 
 const PAID_CHECKOUT_EVENT_TYPES = new Set([
 	"checkout.session.completed",
@@ -634,10 +641,10 @@ async function recordFulfillmentFailure(
 }
 
 export async function sendRegistrationEmail(env, email) {
-	const apiKey = cleanText(env.RESEND_API_KEY);
+	const apikey = cleanText(env.RESEND_API_KEY);
 	const from = cleanText(env.PREREG_FROM_EMAIL);
 
-	if (!apiKey || !from) {
+	if (!apikey || !from) {
 		throw new Error("Registration email is not configured");
 	}
 
@@ -646,7 +653,7 @@ export async function sendRegistrationEmail(env, email) {
 		{
 			method: "POST",
 			headers: {
-				Authorization: `Bearer ${apiKey}`,
+				Authorization: `Bearer ${apikey}`,
 				"Content-Type": "application/json",
 				"Idempotency-Key": email.idempotencyKey,
 			},
@@ -1347,16 +1354,172 @@ export async function handleResendPaymentLink(
 	);
 }
 
-function isPreregAdmin(request, env) {
-	const expectedToken = cleanText(env.PREREG_ADMIN_TOKEN);
+function getBearerToken(request) {
 	const authorization = cleanText(
 		request.headers.get("Authorization"),
 	);
 
-	return(
-		Boolean(expectedToken) &&
-		authorization === `Bearer ${expectedToken}`
+	if (!authorization.startsWith("Bearer ")) {
+		return "";
+	}
+
+	return authorization.slice("Bearer ".length).trim();
+}
+
+function getSupabaseJwks(supabaseUrl) {
+	let jwks = SUPABASE_JWKS.get(supabaseUrl);
+
+	if (!jwks) {
+		jwks = createRemoteJWKSet(
+			new URL(
+				`${supabaseUrl}/auth/v1/.well-known/jwks.json`,
+			),
+		);
+
+		SUPABASE_JWKS.set(supabaseUrl, jwks);
+	}
+
+	return jwks;
+}
+
+export async function authorizePreregAdmin(request, env) {
+	const token = getBearerToken(request);
+	const legacyToken = cleanText(
+		env.PREREG_ADMIN_TOKEN,
 	);
+
+	if (!token) {
+		return {
+			ok: false,
+			status: 401,
+			error: "Unauthorized",
+		};
+	}
+
+	if (legacyToken && token === legacyToken) {
+		return {
+			ok: true,
+			authType: "legacy",
+			role: "super_admin",
+		};
+	}
+
+	const supabaseUrl = cleanText(
+				env.SUPABASE_URL,
+
+	).replace(/\/+$/, "");
+	const secretKey = cleanText(
+		env.SUPABASE_SECRET_KEY,
+	);
+
+	if (!supabaseUrl || !secretKey) {
+		return {
+			ok: false,
+			status: 401,
+			error: "Unauthorized",
+		};
+	}
+
+	try {
+		const { payload } = await jwtVerify(
+			token,
+			getSupabaseJwks(supabaseUrl),
+			{
+				issuer: `${supabaseUrl}/auth/v1`,
+				audience: "authenticated",
+			},
+		);
+
+		if (
+			payload.role !== "authenticated" ||
+			!payload.sub
+		) {
+			return {
+				ok: false,
+				status: 401,
+				error: "Unauthorized",
+			};
+		}
+
+		if (payload.aal !== "aal2") {
+			return {
+				ok: false,
+				status: 403,
+				error: "Multi-factor authentication required",
+			};
+		}
+
+		const allowlistUrl = new URL(
+			`${supabaseUrl}/rest/v1/admin_users`,
+		);
+
+		allowlistUrl.searchParams.set(
+			"select",
+			"user_id,role",
+		);
+		allowlistUrl.searchParams.set(
+			"user_id",
+			`eq.${payload.sub}`,
+		);
+		allowlistUrl.searchParams.set(
+			"active",
+			"eq.true",
+		);
+		allowlistUrl.searchParams.set("limit", "1");
+
+		const allowlistResponse = await fetch(
+			allowlistUrl,
+			{
+				headers: {
+					apikey: secretKey,
+					Accept: "application/json",
+				},
+			},
+		);
+
+		if (!allowlistResponse.ok) {
+			console.error(
+				"Supabase allowlist request failed",
+				allowlistResponse.status,
+			);
+
+			return {
+				ok: false,
+				status: 503,
+				error: "Admin access is temporarily unavailable",
+			};
+		}
+
+		const rows = await allowlistResponse.json();
+		const admin =
+			Array.isArray(rows) ? rows[0] : null;
+
+		if (!admin) {
+			return {
+				ok: false,
+				status: 403,
+				error: "Forbidden",
+			};
+		}
+
+		return {
+			ok: true,
+			authType: "supabase",
+			userId: payload.sub,
+			role: admin.role,
+		};
+	} catch (error) {
+		console.error(
+			"Supabase JWT verification failed",
+			error,
+		);
+
+		return {
+			ok: false,
+			status: 401,
+			error: "Unauthorized",
+		};
+	}
 }
 
 export async function handlePaymentReport(request, env, corsHeaders) {
@@ -1569,13 +1732,16 @@ export async function handleAdminRegistrations(
 		"Cache-Control": "no-store",
 	};
 
-	if (!isPreregAdmin(request,env)) {
+	const adminAuthorization =
+		await authorizePreregAdmin(request,env);
+
+	if (!adminAuthorization.ok) {
 		return json(
 			{
 				ok: false,
-				error: "Unauthorized",
+				error: adminAuthorization.error,
 			},
-			401,
+			adminAuthorization.status,
 			headers,
 		);
 	}
@@ -1655,16 +1821,17 @@ async function handleAdminRegistrationStatus(
 	env,
 	corsHeaders,
 ) {
-	if (!isPreregAdmin(request, env)) {
-		return Response.json(
+	const adminAuthorization =
+		await authorizePreregAdmin(request, env);
+
+	if (!adminAuthorization.ok) {
+		return json(
 			{
 				ok: false,
-				error: "Unathorized",
+				error: adminAuthorization.error,
 			},
-			{
-				status: 401,
-				headers: corsHeaders,
-			},
+			adminAuthorization.status,
+			headers,
 		);
 	}
 
