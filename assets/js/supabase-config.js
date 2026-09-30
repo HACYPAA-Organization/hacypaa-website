@@ -4,7 +4,7 @@
     window.HACYPAA_SUPABASE_CONFIG =
         Object.freeze({
             url: "https://ffhfbdazrbkksfuhmbpn.supabase.co",
-            publishablekey:
+            publishableKey:
                 "sb_publishable_Y9LM_6IdJiuLoiLsRhpoYQ_u4qYkeU1",
         });
 })();
