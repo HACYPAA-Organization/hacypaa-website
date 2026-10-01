@@ -9,7 +9,7 @@
       content="Pre-register for HACYPAA 2027 and help the committee plan the conference."
     />
 
-    <title>Registration Dashboard | HACYPAA — Divine Paradox</title>
+    <title>Admin Portal | HACYPAA — Divine Paradox</title>
 
     <link rel="canonical" href="https://hacypaa.us/registration/" />
 
@@ -55,181 +55,227 @@
     <main id="main-content">
       <section class="section">
         <div class="shell admin-shell">
-          <p class="eyevrow">HACYPAA XI · DIVINE PARADOX</p>
+          <div class="admin-auth-shell">
+            <div class="admin-auth-topbar">
+              <a
+                  class="wordmark admin-wordmark"
+                  href="/"
+                  aria-label="HACYPAA home"
+                >
+                  <span class="wordmark-mark" aria-hidden="true">H</span>
+                  <span>HACYPAA</span>
+                </a>
 
-          <h1>Registration dashboard</h1>
+                <span class="admin-context">
+                  Conference administration
+                </span>
+            </div>
 
-          <p>
-              Review preregistrations and reported payments.
-          </p>
+            <div class="admin-auth-layout">
+              <div class="admin-auth-intro">
+                <p class="eyevrow">
+                  HACYPAA XI · DIVINE PARADOX
+                </p>
 
-          <form id="admin-login-form" class="prereg-form">
-            <label for="admin-email">Email address</label>
+                <h1>
+                  Admin
+                  <em>portal</em>
+                </h1>
 
-            <input
-              id="admin-email"
-              name="email"
-              type="email"
-              autocomplete="username"
-              required
-            >
+                <p class="admin-intro-copy">
+                  Secure access to conference operations tools assigned
+                  to your committee role.
+                </p>
 
-            <label for="admin-password">Password</label>
+                <p class="admin-access-note">
+                  Authorized committee access
+                </p>
+              </div>
 
-            <input
-              id="admin-password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              required
-            >
+              <div class="admin-auth-panel">
+                <form
+                id="admin-login-form" 
+                class="prereg-form"
+                >
 
-            <button
-              id="admin-login-submit"
-              class="button"
-              type="submit"
-            >
-              Sign in
-            </button>
+                <div class="admin-form-heading">
+                  <h2>Welcome back.</h2>
 
-            <button
-              id="admin-reset-request"
-              class="button"
-              type="button"
-            >
-                Reset password
-            </button>
-          </form>
+                  <p>
+                    Sign in with your approved admin account.
+                    Authenticator verification follows.
+                  </p>
+                </div>
 
-          <form
-            id="admin-password-form"
-            class="prereg-form"
-            hidden
-          >
-            <h2>Set your admin password</h2>
+                <label for="admin-email">Email address</label>
 
-            <p>
-              Use at least 12 characters.
-            </p>
+                <input
+                  id="admin-email"
+                  name="email"
+                  type="email"
+                  autocomplete="username"
+                  required
+                >
 
-            <label for="admin-new-password">
-              New password
-            </label>
+                <label for="admin-password">Password</label>
 
-            <input
-              id="admin-new-password"
-              name="newPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="12"
-              required
-            >
+                <input
+                  id="admin-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                >
 
-            <label for="admin-confirm-password">
-              Confirm password
-            </label>
+                <button
+                  id="admin-login-submit"
+                  class="button"
+                  type="submit"
+                >
+                  Sign in
+                </button>
 
-            <input
-              id="admin-confirm-password"
-              name="confirmPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="12"
-              required
-            >
+                <button
+                  id="admin-reset-request"
+                  class="button"
+                  type="button"
+                >
+                    Reset password
+                </button>
+              </form>
 
-            <button
-              id="admin-password-submit"
-              class="button"
-              type="submit"
-            >
-              Save password
-            </button>
-          </form>
-
-          <section id="admin-mfa-enrollment" hidden>
-            <h2>Secure your admin account</h2>
-
-            <p>
-              Scan this QR code with your authenticator app,
-              then enter the six-digit code it generates.
-            </p>
-
-            <img
-              id="admin-mfa-qr"
-              alt="Authenticator setup QR code"
-            >
-
-            <p>
-              Manual setup code:
-              <code id="admin-mfa-secret"></code>
-            </p>
-
-            <form
-              id="admin-mfa-enrollment-form"
-              class="prereg-form"
-            >
-              <label for="admin-mfa-enrollment-code">
-                Authenticator code
-              </label>
-
-              <input
-                id="admin-mfa-enrollment-code"
-                name="code"
-                type="text"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxlength="6"
-                required
+              <form
+                id="admin-password-form"
+                class="prereg-form"
+                hidden
               >
+                <h2>Set your admin password</h2>
 
-              <button
-                id="admin-mfa-enrollment-submit"
-                class="button"
-                type="submit"
+                <p>
+                  Use at least 12 characters.
+                </p>
+
+                <label for="admin-new-password">
+                  New password
+                </label>
+
+                <input
+                  id="admin-new-password"
+                  name="newPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="12"
+                  required
+                >
+
+                <label for="admin-confirm-password">
+                  Confirm password
+                </label>
+
+                <input
+                  id="admin-confirm-password"
+                  name="confirmPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="12"
+                  required
+                >
+
+                <button
+                  id="admin-password-submit"
+                  class="button"
+                  type="submit"
+                >
+                  Save password
+                </button>
+              </form>
+
+              <section id="admin-mfa-enrollment" hidden>
+                <h2>Secure your admin account</h2>
+
+                <p>
+                  Scan this QR code with your authenticator app,
+                  then enter the six-digit code it generates.
+                </p>
+
+                <img
+                  id="admin-mfa-qr"
+                  alt="Authenticator setup QR code"
+                >
+
+                <p>
+                  Manual setup code:
+                  <code id="admin-mfa-secret"></code>
+                </p>
+
+                <form
+                  id="admin-mfa-enrollment-form"
+                  class="prereg-form"
+                >
+                  <label for="admin-mfa-enrollment-code">
+                    Authenticator code
+                  </label>
+
+                  <input
+                    id="admin-mfa-enrollment-code"
+                    name="code"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxlength="6"
+                    required
+                  >
+
+                  <button
+                    id="admin-mfa-enrollment-submit"
+                    class="button"
+                    type="submit"
+                  >
+                    Enable authenticator
+                  </button>
+                </form>
+              </section>
+
+              <form
+                id="admin-mfa-challenge-form"
+                class="prereg-form"
+                hidden
               >
-                Enable authenticator
-              </button>
-            </form>
-          </section>
+                <h2>Authenticator verification</h2>
 
-          <form
-            id="admin-mfa-challenge-form"
-            class="prereg-form"
-            hidden
-          >
-            <h2>Authenticator verification</h2>
+                <label for="admin-mfa-challenge-code">
+                  Enter your six-digit code
+                </label>
 
-            <label for="admin-mfa-challenge-code">
-              Enter your six-digit code
-            </label>
+                <input
+                  id="admin-mfa-challenge-code"
+                  name="code"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  required
+                >
 
-            <input
-              id="admin-mfa-challenge-code"
-              name="code"
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxlength="6"
-              required
-            >
+                <button
+                  id="admin-mfa-challenge-submit"
+                  class="button"
+                  type="submit"
+                >
+                  Verify
+                </button>
+              </form>
 
-            <button
-              id="admin-mfa-challenge-submit"
-              class="button"
-              type="submit"
-            >
-              Verify
-            </button>
-          </form>
-
-          <p
-            id="admin-login-feedback"
-            role="status"
-            aria-live="polite"
-          ></p>
+              <p
+                id="admin-login-feedback"
+                role="status"
+                aria-live="polite"
+              ></p>
+            </div>
+          </div>
+        </div>
           <section id="admin-dashboard" hidden>
             <div class="admin-toolbar">
               <h2>Registrations</h2>
