@@ -9,6 +9,7 @@ import {
 import worker, {
 	authorizePreregAdmin,
 	buildPrintifyOrderPayload,
+	handlePanelistApplication,
 	handlePaymentReport,
 	handleResendPaymentLink,
 	sendPaymentConfirmationEmail,
@@ -1682,5 +1683,143 @@ describe("HACYPAA checkout API", () => {
             error: "Forbidden",
         });
         expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("accepts a valid panelist application", async () => {
+		const run = vi.fn().mockResolvedValue({
+			meta: {
+				changes: 1,
+			},
+		});
+
+		const bind = vi.fn(() => ({
+			run,
+		}));
+
+		const prepare = vi.fn(() => ({
+			bind,
+		}));
+
+		const submissionKey =
+			"123e4567-e89b-42d3-a456-426614174000";
+
+		const response = await handlePanelistApplication(
+			new Request(
+				"https://example.com/panelists",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						submissionKey,
+						firstName: "Zach",
+						lastName: "Walker",
+						email: "zach@example.com",
+						phoneNumber: "816-555-0100",
+						stepPreferences: [
+							"12",
+							"1",
+							"4",
+							"4",
+						],
+						sobrietyDate: "2024-06-15",
+						hasSponsor: true,
+						workedSteps: true,
+						location: "Kansas City, Missouri",
+						hasHomeGroup: true,
+						homeGroup: "Example Group",
+						topicPreferences:
+							"Sponsorship and service",
+					}),
+				},
+			),
+			{
+				ORDERS_DB: {
+					prepare,
+				},
+			},
+			{},
+		);
+
+		expect(response.status).toBe(201);
+
+		expect(await response.json()).toEqual({
+			ok: true,
+			submissionKey,
+		});
+
+		expect(prepare).toHaveBeenCalledOnce();
+
+		expect(
+			prepare.mock.calls[0][0]
+				.replace(/\s+/g, " ")
+				.trim(),
+		).toContain(
+			"INSERT INTO panelist_volunteers",
+		);
+
+		expect(bind).toHaveBeenCalledWith(
+			submissionKey,
+			"Zach",
+			"Walker",
+			"zach@example.com",
+			"816-555-0100",
+			'["1","4","12"]',
+			"2024-06-15",
+			1,
+			1,
+			"Kansas City, Missouri",
+			1,
+			"Example Group",
+			"Sponsorship and service",
+		);
+
+		expect(run).toHaveBeenCalledOnce();
+	});
+
+	it("rejects invalid panelist applications before database access", async () => {
+    const prepare = vi.fn();
+
+    const response = await handlePanelistApplication(
+        new Request(
+            "https://example.com/panelists",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    submissionKey:
+                        "123e4567-e89b-42d3-a456-426614174001",
+                    firstName: "Test",
+                    lastName: "Panelist",
+                    email: "panelist@example.com",
+                    phoneNumber: "816-555-0101",
+                    stepPreferences: ["13"],
+                    sobrietyDate: "2024-06-15",
+                    hasSponsor: true,
+                    workedSteps: true,
+                    location: "Kansas City, Missouri",
+                    hasHomeGroup: false,
+                }),
+            },
+        ),
+        {
+            ORDERS_DB: {
+                prepare,
+            },
+        },
+        {},
+    );
+
+    expect(response.status).toBe(400);
+
+    expect(await response.json()).toEqual({
+        ok: false,
+        error: "Panelist information is incomplete or invalid",
+    });
+
+    expect(prepare).not.toHaveBeenCalled();
 	});
 });

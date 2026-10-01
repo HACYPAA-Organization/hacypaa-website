@@ -1711,6 +1711,198 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 	}
 }
 
+export async function handlePanelistApplication(
+	request,
+	env,
+	corsHeaders,
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{
+				ok: false,
+				error: "Request body must be valid JSON",
+			},
+			400,
+			headers,
+		);
+	}
+
+	const firstName = cleanText(body?.firstName);
+	const lastName = cleanText(body?.lastName);
+	const email = cleanText(body?.email).toLowerCase();
+	const phoneNumber = cleanText(body?.phoneNumber);
+	const sobrietyDate = cleanText(body?.sobrietyDate);
+	const location = cleanText(body?.location);
+	const topicPreferences =
+		cleanText(body?.topicPreferences) || null;
+	const submissionKey =
+		cleanText(body?.submissionKey).toLowerCase();
+
+	const hasSponsor =
+		body?.hasSponsor === true ? 1 : 0;
+	const workedSteps =
+		body?.workedSteps === true ? 1 : 0;
+	const hasHomeGroup =
+		body?.hasHomeGroup === true ? 1 : 0;
+
+	const homeGroup = hasHomeGroup
+		? cleanText(body?.homeGroup) || null
+		: null;
+
+	const stepPreferences = Array.isArray(
+		body?.stepPreferences,
+	)
+		? [
+			...new Set(
+				body.stepPreferences.map((value) =>
+					String(value).trim(),
+				),
+			),
+		].sort((left,right) => Number(left) - Number(right))
+	  : [];
+
+	const parsedSobrietyDate = new Date(
+		`${sobrietyDate}T00:00:00Z`,
+	);
+
+	const validSobrietyDate =
+		/^\d{4}-\d{2}-\d{2}$/.test(sobrietyDate) &&
+		!Number.isNaN(parsedSobrietyDate.getTime()) &&
+		parsedSobrietyDate.toISOString().slice(0, 10) ===
+			sobrietyDate &&
+		sobrietyDate <= new Date().toISOString().slice(0, 10);
+
+	const validSubmissionKey =
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+			submissionKey,
+		);
+
+	const validStepPreferences =
+		stepPreferences.length > 0 &&
+		stepPreferences.length <= 12 &&
+		stepPreferences.every((step) =>
+			/^(?:[1-9]|1[0-2])$/.test(step),
+		);
+
+	if (
+		!body ||
+		typeof body !== "object" ||
+		Array.isArray(body) ||
+		!firstName ||
+		firstName.length > 100 ||
+		!lastName ||
+		lastName.length > 100 ||
+		email.length > 254 ||
+		!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+		!phoneNumber ||
+		phoneNumber.length > 40 ||
+		!validStepPreferences ||
+		!validSobrietyDate ||
+		!location ||
+		location.length > 150 ||
+		typeof body.hasSponsor !== "boolean" ||
+		typeof body.workedSteps !== "boolean" ||
+		typeof body.hasHomeGroup !== "boolean" ||
+		(hasHomeGroup === 1 && !homeGroup) ||
+		(homeGroup?.length || 0) > 150 ||
+		(topicPreferences?.length || 0) > 1000 ||
+		!validSubmissionKey
+	) {
+		return json(
+			{
+				ok: false,
+				error: "Panelist information is incomplete or invalid",
+			},
+			400,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{
+				ok: false,
+				error: "Panelist applications are temporarily unavailable",
+			},
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const result = await env.ORDERS_DB.prepare(`
+			INSERT INTO panelist_volunteers (
+				submission_key,
+				first_name,
+				last_name,
+				email,
+				phone_number,
+				step_preferences,
+				sobriety_date,
+				has_sponsor,
+				worked_steps,
+				location,
+				has_home_group,
+				home_group,
+				topic_preferences
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(submission_key) DO NOTHING
+		`)
+			.bind(
+				submissionKey,
+				firstName,
+				lastName,
+				email,
+				phoneNumber,
+				JSON.stringify(stepPreferences),
+				sobrietyDate,
+				hasSponsor,
+				workedSteps,
+				location,
+				hasHomeGroup,
+				homeGroup,
+				topicPreferences,
+			)
+			.run();
+
+		const created =
+			Number(result.meta?.changes || 0) > 0;
+
+		return json(
+			{
+				ok: true,
+				submissionKey,
+			},
+			created ? 201 : 200,
+			headers,
+		);
+	} catch (error) {
+		console.error("Panelist application failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{
+				ok: false,
+				error: "Could not save the panelist application",
+			},
+			503,
+			headers,
+		);
+	}
+}
+
 export async function handleAdminRegistrations(
 	request,
 	env,
@@ -1804,6 +1996,7 @@ export async function handleAdminRegistrations(
 		)
 	}
 }
+
 
 async function handleAdminRegistrationStatus(
 	request,
@@ -2342,6 +2535,17 @@ export default {
 				"/registrations/resend-payment-link"
 		) {
 			return handleResendPaymentLink(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
+			request.method === "POST" &&
+			url.pathname === "/panelist"
+		) {
+			return handlePanelistApplication(
 				request,
 				env,
 				corsHeaders,
