@@ -101,7 +101,7 @@
 
     function showAdminView(viewName) {
         const showVolunteers =
-            viewName = "volunteers";
+            viewName === "volunteers";
 
         activeView = showVolunteers
             ? "volunteers"
