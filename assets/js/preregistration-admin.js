@@ -26,6 +26,24 @@
         document.querySelector("#registration-rows");
     const emptyMessage =
         document.querySelector("#admin-empty");
+    const registrationViewButton =
+        document.querySelector("#admin-view-registrations");
+    const volunteerViewButton =
+        document.querySelector("#admin-view-volunteers");
+    const registrationView =
+        document.querySelector("#admin-registration-view");
+    const volunteerView =
+        document.querySelector("#admin-volunteer-view");
+    const panelistSummary =
+        document.querySelector("#admin-panelist-summary");
+    const panelistFeedback =
+        document.querySelector("#admin-panelist-feedback");
+    const panelistTableBody =
+        document.querySelector("#panelist-rows");
+    const panelistEmptyMessage =
+        document.querySelector("#admin-panelist-empty");
+    const exportPanelistsButton =
+        document.querySelector("#admin-export-panelists");
 
     if (
         !adminAuth ||
@@ -36,7 +54,16 @@
         !summary ||
         !feedback ||
         !tableBody ||
-        !emptyMessage
+        !emptyMessage ||
+        !registrationViewButton ||
+        !volunteerViewButton ||
+        !registrationView ||
+        !volunteerView ||
+        !panelistSummary ||
+        !panelistFeedback ||
+        !panelistTableBody ||
+        !panelistEmptyMessage ||
+        !exportPanelistsButton
     ) {
         return;
     }
@@ -58,6 +85,40 @@
         } else {
             delete feedback.dataset.state;
         }
+    }
+
+    let activeView = "registrations";
+
+    function setPanelistFeedback(message, state = "") {
+        panelistFeedback.textContent = message;
+
+        if (state) {
+            panelistFeedback.dataset.state = state;
+        } else {
+            delete panelistFeedback.dataset.state;
+        }
+    }
+
+    function showAdminView(viewName) {
+        const showVolunteers =
+            viewName = "volunteers";
+
+        activeView = showVolunteers
+            ? "volunteers"
+            : "registrations";
+
+        registrationView.hidden = showVolunteers;
+        volunteerView.hidden = !showVolunteers;
+
+        registrationViewButton.setAttribute(
+            "aria-pressed",
+            String(!showVolunteers),
+        );
+
+        volunteerViewButton.setAttribute(
+            "aria-pressed",
+            String(showVolunteers),
+        );
     }
 
     const statusLabels = {
@@ -306,6 +367,118 @@
         }
     }
 
+    const panelistStatusLabels = {
+        new: "New",
+        contacted: "Contacted",
+        selected: "Selected",
+        declined: "Declined",
+    };
+
+    function renderPanelists(panelists) {
+        panelistTableBody.replaceChildren();
+
+        const newCount = panelists.filter(
+            (panelist) => panelist.status === "new",
+        ).length;
+
+        const selectedCount = panelists.filter(
+            (panelist) => panelist.status === "selected",
+        ).length;
+
+        panelistSummary.textContent =
+            `${panelists.length} total · ` +
+            `${newCount} new · ` +
+            `${selectedCount} selected`;
+
+        panelistEmptyMessage.hidden =
+            panelists.length !== 0;
+
+        for (const panelist of panelists) {
+            const row = document.createElement("tr");
+
+            const applicantCell = addCell(
+                row,
+                `${panelist.firstName || ""} ` +
+                    `${panelist.lastName || ""}`.trim(),
+            );
+
+            const email = document.createElement("small");
+            const phone = document.createElement("small");
+
+            email.textContent =
+                panelist.email || "Email not provided";
+            phone.textContent =
+                panelists.phoneNumber ||
+                "Phone not provided";
+
+            applicantCell.append(
+                document.createElement("br"),
+                email,
+                document.createElement("br"),
+                phone,
+            );
+
+            addCell(
+                row,
+                Array.isArray(panelist.stepPreferences)
+                    ? panelist.stepPreferences.join(", ")
+                    : "None selected",
+            );
+
+            const recoveryCell = addCell(
+                row,
+                [
+                    `Sobriety date: ${
+                        panelist.sobrietyDate || "Not provided"
+                    }`,
+                    `Sponsor: ${
+                        panelist.hasSponsor ? "Yes" : "No"
+                    }`,
+                    `Worked Steps: ${
+                        panelist.workedSteps ? "Yes" : "No"
+                    }`,
+                ].join("\n"),
+            );
+
+            recoveryCell.style.whiteSpace = "pre-line";
+
+            const locationCell = addCell(
+                row,
+                [
+                    panelist.location || "Not provided",
+                    panelist.hasHomeGroup
+                        ? `Home group: ${
+                            panelist.homeGroup ||
+                            "Not Provided"
+                        }`
+                        : "No home group",
+                ].join("\n"),
+            );
+
+            locationCell.style.whiteSpace = "pre-line";
+
+            addCell(
+                row,
+                panelist.topicPreferences ||
+                    "No topic preferences provided",
+            );
+
+            addCell(
+                row,
+                panelistStatusLabels[panelist.status] ||
+                    panelist.status ||
+                    "Unknown",
+            );
+
+            addCell(
+                row,
+                formatDate(panelist.createdAt),
+            );
+
+            panelistTableBody.append(row);
+        }
+    }
+
     async function loadRegistrations() {
         refreshButton.disabled = true;
         loginFeedback.textContent = "Checking access...";
@@ -378,6 +551,87 @@
                 loginFeedback.textContent = message;
             } else {
                 setFeedback(message, "error");
+            }
+        } finally {
+            refreshButton.disabled = false;
+        }
+    }
+
+    async function loadPanelists() {
+        refreshButton.disabled = true;
+
+        setPanelistFeedback(
+            "Loading panelist applications...",
+            "pending",
+        );
+
+        try {
+            const adminToken =
+                await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin(
+                    "Your admin session has expired.",
+                );
+                return;
+            }
+
+            const response = await fetch(
+                apiBase + "/admin/panelists",
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${adminToken}`,
+                    },
+                },
+            );
+
+            const data = await response
+                .json()
+                .catch(() => null);
+
+            if (
+                response.status === 401 ||
+                response.status === 403
+            ) {
+                const message =
+                    response.status === 403
+                        ? data?.error ||
+                          "This account is not authorized."
+                        : "Your admin session has expired.";
+
+                await adminAuth.signout();
+                showLogin(message);
+                return;
+            }
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                !Array.isArray(data.panelists)
+            ) {
+                throw new Error(
+                    data?.error ||
+                        "Could not load panlist applications.",
+                );
+            }
+
+            renderPanelists(data.panelists);
+            showDashboard();
+
+            setPanelistFeedback(
+                "Panelist list is current.",
+                "success",
+            );
+        } catch (error) {
+            const message =
+                error.message ||
+                "Could not load panelist applications.";
+
+            if (dashboard.hidden) {
+                loginFeedback.textContent = message;
+            } else {
+                setPanelistFeedback(message, "error");
             }
         } finally {
             refreshButton.disabled = false;
@@ -476,8 +730,28 @@
     }
 
     refreshButton.addEventListener("click", function () {
-        loadRegistrations();
+        if (activeView === "volunteers") {
+            loadPanelists();
+        } else {
+            loadRegistrations();
+        }
     });
+
+    registrationViewButton.addEventListener(
+        "click",
+        function() {
+            showAdminView("registrations");
+            loadRegistrations();
+        },
+    );
+
+    volunteerViewButton.addEventListener(
+        "click",
+        function () {
+            showAdminView("volunteers");
+            loadPanelists();
+        },
+    );
 
     tableBody.addEventListener(
         "click",
@@ -534,15 +808,20 @@
     logoutButton.addEventListener(
         "click",
         async function () {
+            panelistTableBody.replaceChildren();
             tableBody.replaceChildren();
+            panelistSummary.textContent = "";
             summary.textContent = "";
+            setPanelistFeedback("");
             setFeedback("");
-
+            panelistTableBody.replaceChildren();
+            showAdminView("registrations");
             await adminAuth.signOut();
         },
     );
 
     adminAuth.onAuthenticated(function () {
+        showAdminView("registrations");
         loadRegistrations();
     });
 })();

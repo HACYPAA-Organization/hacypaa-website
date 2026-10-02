@@ -328,7 +328,7 @@
                 id="admin-view-volunteers"
                 class="admin-view-button"
                 type="button"
-                aria-pressed="true"
+                aria-pressed="false"
               >
                 Volunteers
               </button>
@@ -358,7 +358,7 @@
 
               <div class="admin-table-wrap">
                 <table class="admin-table">
-                  <thread>
+                  <thead>
                     <tr>
                       <th scope="col">Attendee</th>
                       <th scope="col">Home group</th>
@@ -369,7 +369,7 @@
                       <th scope="col">Submitted</th>
                       <th scope="col">Actions</th>
                     </tr>
-                  </thread>
+                  </thead>
 
                   <tbody id="registration-rows"></tbody>
                 </table>
@@ -377,6 +377,62 @@
 
               <p id="admin-empty" hidden>
                 No registrations found.
+              </p>
+            </section>
+
+            <section
+              id="admin-volunteer-view"
+              aria-labelledby="admin-view-volunteers"
+              hidden
+            >
+              <div class="admin-section-heading">
+                <div>
+                  <p class="admin-section-kicker">
+                    Conference service
+                  </p>
+
+                  <h3>Panelist volunteers</h3>
+                </div>
+
+                <div class="admin-section-actions">
+                  <p id="admin-panelist-summary"></p>
+
+                  <button
+                    id="admin-export-panelists"
+                    class="button"
+                    type="button"
+                  >
+                  Export CSV
+                  </button>
+                </div>
+              </div>
+
+              <p
+                id="admin-panelist-feedback"
+                role="status"
+                aria-live="polite"
+              ></p>
+
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Applicant</th>
+                      <th scope="col">Steps</th>
+                      <th scope="col">Recovery</th>
+                      <th scope="col">Location</th>
+                      <th scope="col">Topics</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Submitted</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="panelist-rows"></tbody>
+                </table>
+              </div>
+
+              <p id="admin-panelist-empty" hidden>
+                No panelist applications found.
               </p>
             </section>
           </div>

@@ -1997,7 +1997,114 @@ export async function handleAdminRegistrations(
 	}
 }
 
+export async function handleAdminPanelists(
+	request,
+	env,
+	corsHeaders,
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
 
+	const adminAuthorization =
+		await authorizePreregAdmin(request, env);
+
+	if (!adminAuthorization.ok) {
+		return json(
+			{
+				ok: false,
+				error: adminAuthorization.error,
+			},
+			adminAuthorization.status,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{
+				ok: false,
+				error: "Panelist records are temporarily unavailable",
+			},
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const result = await env.ORDERS_DB.prepare(`
+			SELECT
+				id,
+				first_name AS firstName,
+				last_name AS lastName,
+				email,
+				phone_number AS phoneNumber,
+				step_preferences AS stepPreferences,
+				sobriety_date AS sobrietyDate,
+				has_sponsor AS hasSponsor,
+				worked_steps AS workedSteps,
+				location,
+				has_home_group AS hasHomeGroup,
+				home_group AS homeGroup,
+				topic_preferences AS topicPreferences,
+				status,
+				admin_notes AS adminNotes,
+				created_at AS createdAt,
+				updated_at AS updatedAt
+			FROM panelist_volunteers
+			ORDER BY created_at DESC, id DESC
+			LIMIT 500
+		`).all();
+
+		const panelists = (
+			result.results || []
+		).map((panelists) => {
+			let stepPreferences = [];
+
+			try {
+				const parsed = JSON.parse(
+					panelists.stepPreferences || "[]",
+				);
+
+				if (Array.isArray(parsed)) {
+					stepPreferences =
+						parsed.map(String);
+				}
+			} catch {
+				stepPreferences = [];
+			}
+
+			return {
+				...panelists,
+				stepPreferences,
+			};
+		});
+
+		return json(
+			{
+				ok: true,
+				panelists,
+			},
+			200,
+			headers,
+		);
+	} catch (error) {
+		console.error("Admin panelist list failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{
+				ok: false,
+				error: "Could not load panelist records",
+			},
+			503,
+			headers,
+		);
+	}
+}
 async function handleAdminRegistrationStatus(
 	request,
 	env,
@@ -2470,6 +2577,17 @@ export default {
 		}
 
 		if (
+			request.method === "GET" &&
+			url.pathname === "/admin/panelists"
+		) {
+			return handleAdminPanelists(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
 			request.method === "PATCH" &&
 			url.pathname === "/admin/registrations/status"
 		) {
@@ -2543,7 +2661,7 @@ export default {
 
 		if (
 			request.method === "POST" &&
-			url.pathname === "/panelist"
+			url.pathname === "/panelists"
 		) {
 			return handlePanelistApplication(
 				request,

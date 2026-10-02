@@ -185,61 +185,367 @@
         </div>
       </section>
 
-      <section class="info-section">
-        <div class="info-heading">
-          <p class="section-kicker">There is a place for you</p>
-          <h2>Service starts with showing up, and suiting up.</h2>
+      <section class="interior-hero panelist-hero">
+        <div class="section-index light-index">
+          <span>04</span>
+          <p>Share your experience</p>
         </div>
 
-        <div class="info-grid">
-          <article class="info-card">
-            <span class="info-number">01</span>
+        <div class="interior-hero-copy">
+          <p class="section-kicker light-kicker">
+            HACYPAA XI · DIVINE PARADOX
+          </p>
 
-            <div>
-              <h3>Join the Committee</h3>
-              <p>
-                Attend a committee meeting, learn what work is underway, and
-                find a service position that fits your availability.
-              </p>
-            </div>
+          <h1>
+            Help carry the message.<br />
+            <em>Become a panelist.</em>
+          </h1>
 
-            <span class="status-pill status-pill-dark"
-              >Meeting details coming soon</span
-            >
-          </article>
-
-          <article class="info-card">
-            <span class="info-number">02</span>
-
-            <div>
-              <h3>Help at Events</h3>
-              <p>
-                Fundraisers and fellowship events need people willing to set up,
-                welcome guests, pitch in, and clean up afterward.
-              </p>
-            </div>
-
-            <span class="status-pill status-pill-dark"
-              >Opportunities will be posted</span
-            >
-          </article>
-
-          <article class="info-card">
-            <span class="info-number">03</span>
-
-            <div>
-              <h3>Bring What You Have</h3>
-              <p>
-                Ideas, creativity, practical skills, and simple willingness all
-                have a place in building the conference.
-              </p>
-            </div>
-
-            <span class="status-pill status-pill-dark"
-              >Every contribution matters</span
-            >
-          </article>
+          <p class="interior-hero">
+            Tell us about your experience and the Steps you
+            would feel comfortable speaking on during HACYPAA XI.
+          </p>
         </div>
+      </section>
+
+      <section
+        class="prereg-section panelist-section"
+        aria-labelledby="panelist-heading"
+      >
+        <div class="panelist-form-intro">
+          <p class="section-kicker">Panelist interest form</p>
+
+          <h2 id="panelist-heading">
+            Share your experience with the fellowship.
+          </h2>
+
+          <p>
+            Complete this form if you are interested in serving
+            as a panelist. Submission does not guarantee a panel
+            assignment. The Promgrams Committee will contact
+            selected participants.
+          </p>
+        </div>
+
+        <form
+          id="panelist-form"
+          class="prereg-form panelist-form"
+        >
+          <div class="panelist-form-grid">
+            <label for="panelist-first-name">
+              First name *
+              <input
+                id="panelist-first-name"
+                name="firstName"
+                type="text"
+                autocomplete="given-name"
+                maxlength="100"
+                required
+              />
+            </label>
+
+            <label for="panelist-last-name">
+              Last name *
+              <input
+                id="panelist-last-name"
+                name="lastName"
+                type="text"
+                autocomplete="family-name"
+                maxlength="100"
+                required
+              />
+            </label>
+
+            <label for="panelist-email">
+              Email address *
+              <input
+                id="panelist-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                maxlength="254"
+                required
+              />
+            </label>
+
+            <label for="panelist-phone">
+              Phone number *
+              <input
+                id="panelist-phone"
+                name="phoneNumber"
+                type="tel"
+                autocomplete="tel"
+                maxlength="40"
+                required
+              />
+            </label>
+
+            <label for="panelist-sobriety-date">
+              Sobriety date *
+              <input
+                id="panelist-sobriety-date"
+                name="sobrietyDate"
+                type="date"
+                required
+              />
+            </label>
+
+            <label for="panelist-location">
+              Where are you from? *
+              <input
+                id="panelist-location"
+                name="location"
+                type="text"
+                maxlength="150"
+                placeholder="City, state"
+                required
+              />
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>
+              Which Steps would you feel comfortable speaking on? *
+            </legend>
+
+            <p id="panelist-step-help" class="form-help">
+              Select every Step that applies.
+            </p>
+
+            <div
+              class="panelist-step-grid"
+              aria-describedby="panelist-step-help"
+            >
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="1"
+                />
+                Step 1
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="2"
+                />
+                Step 2
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="3"
+                />
+                Step 3
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="4"
+                />
+                Step 4
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="5"
+                />
+                Step 5
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="6"
+                />
+                Step 6
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="7"
+                />
+                Step 7
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="8"
+                />
+                Step 8
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="9"
+                />
+                Step 9
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="10"
+                />
+                Step 10
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="11"
+                />
+                Step 11
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="stepPreferences"
+                  value="12"
+                />
+                Step 12
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Do you currently have a sponsor? *</legend>
+
+            <div class="panelist-choice-grid">
+              <label>
+                <input
+                  type="radio"
+                  name="hasSponsor"
+                  value="yes"
+                  required
+                />
+                Yes
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="hasSponsor"
+                  value="no"
+                  required
+                />
+                No
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Have you worked the steps *</legend>
+
+            <div class="panelist-choice-grid">
+              <label>
+                <input
+                  type="radio"
+                  name="workedSteps"
+                  value="yes"
+                  required
+                />
+                Yes
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="workedSteps"
+                  value="no"
+                  required
+                />
+                No
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Do you have a home group? *</legend>
+
+            <div class="panelist-choice-grid">
+              <label>
+                <input
+                  type="radio"
+                  name="hasHomeGroup"
+                  value="yes"
+                  required
+                />
+                Yes
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="hasHomeGroup"
+                  value="no"
+                  required
+                />
+                No
+              </label>
+            </div>
+          </fieldset>
+
+          <div id="panelist-home-group-field" hidden>
+            <label for="panelist-home-group">
+              Home group name *
+              <input
+                id="panelist-home-group"
+                name="homeGroup"
+                text="text"
+                maxlength="150"
+              />
+            </label>
+          </div>
+
+          <label for="panelist-topics">
+            Are there specific topics that resonate with you?
+            <textarea
+              id="panelist-topics"
+              name="topicPreferences"
+              rows="5"
+              maxlength="1000"
+              placeholder="Share any topics or experiences you would be comfortable discussing."
+            ></textarea>
+          </label>
+
+          <p class="form-help">
+            Your information will only be used by authorized
+            HACYPAA committee members to coordinate programming.
+          </p>
+
+          <button
+            id="panelist-submit"
+            class="button"
+            type="submit"
+          >
+          Submit panelist interest
+          </button>
+        </form>
+
+        <p
+          id="panelist-feedback"
+          role="status"
+          aria-live="polite"
+        ></p>
       </section>
 
       <section class="page-cta">
@@ -278,5 +584,9 @@
     </main>
 
     <script src="/assets/js/script.js"></script>
+    <script
+      src="/assets/js/panelists.js"
+      defer
+      ></script>
   </body>
 </html>

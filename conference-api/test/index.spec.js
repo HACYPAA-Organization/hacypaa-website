@@ -9,6 +9,7 @@ import {
 import worker, {
 	authorizePreregAdmin,
 	buildPrintifyOrderPayload,
+	handleAdminPanelists,
 	handlePanelistApplication,
 	handlePaymentReport,
 	handleResendPaymentLink,
@@ -1685,6 +1686,164 @@ describe("HACYPAA checkout API", () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
+	it("returns panelist records to an authorized admin", async () => {
+		const supabaseUrl =
+			"https://panelist-admin.supabase.co";
+
+		const { jwk, token, userId } =
+			await createSupabaseTestToken({
+				supabaseUrl,
+			});
+
+		const all = vi.fn().mockResolvedValue({
+			results: [
+				{
+					id: 7,
+					firstName: "Test",
+					lastName: "Panelist",
+					email: "panelist@example.com",
+					phoneNumber: "816-555-0105",
+					stepPreferences: '["1", "6"]',
+					sobrietyDate: "2024-06-15",
+					hasSponsor: 1,
+					workedSteps: 1,
+					location: "Kansas City, Missouri",
+					hasHomeGroup: 1,
+					homeGroup: "Example Group",
+					topicPreferences:
+						"Sponsorship and service",
+					status: "new",
+					adminNotes: null,
+					createdAt: 1700000000,
+					updatedAt: 1700000000,
+				},
+			],
+		});
+
+		const prepare = vi.fn(() => ({
+			all,
+		}));
+
+		const fetchMock = vi.fn(
+			async (input, options = {}) => {
+				const url = String(input);
+
+				if (
+					url.endsWith(
+						"/auth/v1/.well-known/jwks.json",
+					)
+				) {
+					return new Response(
+						JSON.stringify({
+							keys: [jwk],
+						}),
+						{
+							status: 200,
+							headers: {
+								"Content-Type":
+									"application/json",
+							},
+						},
+					);
+				}
+
+				if (
+					url.includes(
+						"rest/v1/admin_users",
+					)
+				) {
+					expect(
+						options.headers,
+					).toMatchObject({
+						apikey: "sb_secret_test",
+					});
+
+					return new Response(
+						JSON.stringify([
+							{
+								user_id: userId,
+								role: "prereg_admin",
+							},
+						]),
+						{
+							status: 200,
+							headers: {
+								"Content-Type":
+									"application/json",
+							},
+						},
+					);
+				}
+
+				throw new Error(
+					`Unexpected fetch: ${url}`,
+				);
+			},
+		);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await handleAdminPanelists(
+			new Request(
+				"https://example.com/admin/panelists",
+				{
+					headers: {
+						Authorization:
+							`Bearer ${token}`,
+					},
+				},
+			),
+			{
+				ORDERS_DB: {
+					prepare,
+				},
+				SUPABASE_URL: supabaseUrl,
+				SUPABASE_SECRET_KEY:
+					"sb_secret_test",
+			},
+			{},
+		);
+
+		expect(response.status).toBe(200);
+
+		expect(await response.json()).toEqual({
+			ok: true,
+			panelists: [
+				{
+					id: 7,
+					firstName: "Test",
+					lastName: "Panelist",
+					email: "panelist@example.com",
+					phoneNumber: "816-555-0105",
+					stepPreferences: ["1", "6"],
+					sobrietyDate: "2024-06-15",
+					hasSponsor: 1,
+					workedSteps: 1,
+					location: "Kansas City, Missouri",
+					hasHomeGroup: 1,
+					homeGroup: "Example Group",
+					topicPreferences:
+						"Sponsorship and service",
+					status: "new",
+					adminNotes: null,
+					createdAt: 1700000000,
+					updatedAt: 1700000000,
+				},
+			],
+		});
+
+		expect(prepare).toHaveBeenCalledOnce();
+
+		expect(
+			prepare.mock.calls[0][0]
+				.replace(/\s+/g, " ")
+				.trim(),
+		).toContain("FROM panelist_volunteers");
+
+		expect(all).toHaveBeenCalledOnce();
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("accepts a valid panelist application", async () => {
 		const run = vi.fn().mockResolvedValue({
 			meta: {
@@ -1821,5 +1980,134 @@ describe("HACYPAA checkout API", () => {
     });
 
     expect(prepare).not.toHaveBeenCalled();
+	});
+
+	it("treats a repeated panelist submission key as idempotent", async () => {
+		const run = vi.fn().mockResolvedValue({
+			meta: {
+				changes: 0,
+			},
+		});
+
+		const bind = vi.fn(() => ({
+			run,
+		}));
+
+		const prepare = vi.fn(() => ({
+			bind,
+		}));
+
+		const submissionKey =
+			"123e4567-e89b-42d3-a456-426614174002";
+
+		const response = await handlePanelistApplication(
+			new Request(
+				"https://example.com/panelists",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						submissionKey,
+						firstName: "Repeat",
+						lastName: "Panelist",
+						email: "repeat@example.com",
+						phoneNumber: "816-555-0102",
+						stepPreferences: ["2"],
+						sobrietyDate: "2024-06-15",
+						hasSponsor: false,
+						workedSteps: false,
+						location: "Independence, Missouri",
+						hasHomeGroup: false,
+					}),
+				},
+			),
+			{
+				ORDERS_DB: {
+					prepare,
+				},
+			},
+			{},
+		);
+
+		expect(response.status).toBe(200);
+
+		expect(await response.json()).toEqual({
+			ok: true,
+			submissionKey,
+		});
+
+		expect(prepare).toHaveBeenCalledOnce();
+		expect(bind).toHaveBeenCalledOnce();
+		expect(run).toHaveBeenCalledOnce();
+	});
+
+	it("returns a safe error when a panelist application cannot be saved", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+
+		const run = vi
+			.fn()
+			.mockRejectedValue(
+				new Error("D1 temporarily unavailable"),
+			);
+
+		const bind = vi.fn(() => ({
+			run,
+		}));
+
+		const prepare = vi.fn(() => ({
+			bind,
+		}));
+
+		try {
+			const response =
+				await handlePanelistApplication(
+					new Request(
+						"https://example.com/panelists",
+						{
+							method: "POST",
+							headers: {
+								"Content-Type":
+									"application/json",
+							},
+							body: JSON.stringify({
+								submissionKey:
+									"123e4567-e89b-42d3-a456-426614174003",
+								firstName: "Test",
+								lastName: "Failure",
+								email: "failure@example.com",
+								phoneNumber: "816-555-0103",
+								stepPreferences: ["5"],
+								sobrietyDate: "2024-06-15",
+								hasSponsor: true,
+								workedSteps: true,
+								location: "Kansas City, Missouri",
+								hasHomeGroup: false,
+							}),
+						},
+					),
+					{
+						ORDERS_DB: {
+							prepare,
+						},
+					},
+					{},
+				);
+
+			expect(response.status).toBe(503);
+
+			expect(await response.json()).toEqual({
+				ok: false,
+				error: "Could not save the panelist application",
+			});
+
+			expect(run).toHaveBeenCalledOnce();
+			expect(consoleError).toHaveBeenCalledOnce();
+		} finally {
+			consoleError.mockRestore();
+		}
 	});
 });
