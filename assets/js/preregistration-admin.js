@@ -89,6 +89,8 @@
 
     let activeView = "registrations";
 
+    let currentPanelists = [];
+
     function setPanelistFeedback(message, state = "") {
         panelistFeedback.textContent = message;
 
@@ -376,6 +378,7 @@
 
     function renderPanelists(panelists) {
         panelistTableBody.replaceChildren();
+        currentPanelists = [...panelists];
 
         const newCount = panelists.filter(
             (panelist) => panelist.status === "new",
@@ -408,7 +411,7 @@
             email.textContent =
                 panelist.email || "Email not provided";
             phone.textContent =
-                panelists.phoneNumber ||
+                panelist.phoneNumber ||
                 "Phone not provided";
 
             applicantCell.append(
@@ -477,6 +480,101 @@
 
             panelistTableBody.append(row);
         }
+    }
+
+    function escapeCsvValue(value) {
+        let text = String(value ?? "");
+
+        if (/^[=+\-@]/.test(text.trimStart())) {
+            text = `'${text}`;
+        }
+
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+
+    function exportPanelists() {
+        if (currentPanelists.length === 0) {
+            setPanelistFeedback(
+                "There are no panelist records to export.",
+                "error",
+            );
+            return;
+        }
+
+        const headings = [
+            "First name",
+            "Last name",
+            "Email",
+            "Phone",
+            "Steps",
+            "Sobriety date",
+            "Has sponsor",
+            "Worked Steps",
+            "Location",
+            "Has home group",
+            "Home group",
+            "Topic preferences",
+            "Status",
+            "Admin notes",
+            "Submitted",
+            "Updated",
+        ];
+
+        const rows = currentPanelists.map((panelist) => [
+            panelist.firstName,
+            panelist.lastName,
+            panelist.email,
+            panelist.phoneNumber,
+            Array.isArray(panelist.stepPreferences)
+                ? panelist.stepPreferences.join(", ")
+                : "",
+            panelist.sobrietyDate,
+            panelist.hasSponsor ? "Yes" : "No",
+            panelist.workedSteps ? "Yes" : "No",
+            panelist.location,
+            panelist.hasHomeGroup ? "Yes" : "No",
+            panelist.homeGroup,
+            panelist.topicPreferences,
+            panelistStatusLabels[panelist.status] ||
+                panelist.status,
+            panelist.adminNotes,
+            formatDate(panelist.createdAt),
+            formatDate(panelist.updateAt),
+        ]);
+
+        const csv = [headings, ...rows]
+            .map((row) =>
+                row.map(escapeCsvValue).join(","),
+            )
+            .join("\r\n");
+
+        const blob = new Blob(
+            ["\uFEFF", csv],
+            {
+                type: "text/csv;charset=utf-8",
+            },
+        );
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const date = new Date()
+            .toISOString()
+            .slice(0, 10);
+
+        link.href = url;
+        link.download =
+            `hacypaa-panelists-${date}.csv`;
+
+        document.body.append(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+        setPanelistFeedback(
+            "Panelist CSV downloaded.",
+            "success",
+        );
     }
 
     async function loadRegistrations() {
@@ -600,7 +698,7 @@
                           "This account is not authorized."
                         : "Your admin session has expired.";
 
-                await adminAuth.signout();
+                await adminAuth.signOut();
                 showLogin(message);
                 return;
             }
@@ -612,7 +710,7 @@
             ) {
                 throw new Error(
                     data?.error ||
-                        "Could not load panlist applications.",
+                        "Could not load panelist applications.",
                 );
             }
 
@@ -737,6 +835,11 @@
         }
     });
 
+    exportPanelistsButton.addEventListener(
+        "click",
+        exportPanelists,
+    );
+
     registrationViewButton.addEventListener(
         "click",
         function() {
@@ -817,6 +920,7 @@
             panelistTableBody.replaceChildren();
             showAdminView("registrations");
             await adminAuth.signOut();
+            currentPanelists = [];
         },
     );
 
