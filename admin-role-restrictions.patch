@@ -1,0 +1,431 @@
+--- a/conference-api/src/index.js
++++ b/conference-api/src/index.js
+@@ -13,6 +13,12 @@
+ ]);
+ 
+ const SUPABASE_JWKS = new Map();
++
++const ADMIN_PERMISSIONS = Object.freeze({
++	super_admin: Object.freeze({ registrations: true, volunteers: true }),
++	prereg_admin: Object.freeze({ registrations: true, volunteers: false }),
++	volunteer_admin: Object.freeze({ registrations: false, volunteers: true }),
++});
+ 
+ const PAID_CHECKOUT_EVENT_TYPES = new Set([
+ 	"checkout.session.completed",
+@@ -1483,7 +1489,7 @@
+ 		const admin =
+ 			Array.isArray(rows) ? rows[0] : null;
+ 
+-		if (!admin) {
++		if (!admin || !Object.hasOwn(ADMIN_PERMISSIONS, admin.role)) {
+ 			return {
+ 				ok: false,
+ 				status: 403,
+@@ -1509,6 +1515,32 @@
+ 			error: "Unauthorized",
+ 		};
+ 	}
++}
++
++export async function handleAdminSession(request, env, corsHeaders) {
++	const headers = {
++		...corsHeaders,
++		"Cache-Control": "no-store",
++	};
++	const authorization = await authorizePreregAdmin(request, env);
++
++	if (!authorization.ok) {
++		return json(
++			{ ok: false, error: authorization.error },
++			authorization.status,
++			headers,
++		);
++	}
++
++	return json(
++		{
++			ok: true,
++			role: authorization.role,
++			permissions: ADMIN_PERMISSIONS[authorization.role],
++		},
++		200,
++		headers,
++	);
+ }
+ 
+ export async function handlePaymentReport(request, env, corsHeaders) {
+@@ -1927,6 +1959,14 @@
+ 		);
+ 	}
+ 
++	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.registrations) {
++		return json(
++			{ ok: false, error: "Forbidden" },
++			403,
++			headers,
++		);
++	}
++
+ 	if (!env.ORDERS_DB) {
+ 		return json(
+ 			{
+@@ -2021,6 +2061,14 @@
+ 		);
+ 	}
+ 
++	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.volunteers) {
++		return json(
++			{ ok: false, error: "Forbidden" },
++			403,
++			headers,
++		);
++	}
++
+ 	if (!env.ORDERS_DB) {
+ 		return json(
+ 			{
+@@ -2129,6 +2177,14 @@
+ 		);
+ 	}
+ 
++	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.registrations) {
++		return json(
++			{ ok: false, error: "Forbidden" },
++			403,
++			headers,
++		);
++	}
++
+ 	let body;
+ 
+ 	try {
+@@ -2563,6 +2619,13 @@
+ 				200,
+ 				{ "Cache-Control": "no-store" }
+ 			);
++		}
++
++		if (
++			request.method === "GET" &&
++			url.pathname === "/admin/session"
++		) {
++			return handleAdminSession(request, env, corsHeaders);
+ 		}
+ 
+ 		if (
+--- a/conference-api/test/index.spec.js
++++ b/conference-api/test/index.spec.js
+@@ -1686,6 +1686,137 @@
+         expect(fetchMock).toHaveBeenCalledTimes(2);
+ 	});
+ 
++    for (const role of ["super_admin", "prereg_admin", "volunteer_admin"]) {
++        it(`enforces ${role} access at each admin endpoint`, async () => {
++            const supabaseUrl =
++                `https://${role}-permissions.supabase.co`;
++            const { jwk, token, userId } =
++                await createSupabaseTestToken({ supabaseUrl });
++            const prepare = vi.fn(() => ({
++                all: vi.fn().mockResolvedValue({ results: [] }),
++            }));
++
++            vi.stubGlobal("fetch", vi.fn(async (input) => {
++                const url = String(input);
++
++                if (url.endsWith("/auth/v1/.well-known/jwks.json")) {
++                    return Response.json({ keys: [jwk] });
++                }
++
++                if (url.includes("/rest/v1/admin_users")) {
++                    return Response.json([{ user_id: userId, role }]);
++                }
++
++                throw new Error(`Unexpected fetch: ${url}`);
++            }));
++
++            const env = {
++                SUPABASE_URL: supabaseUrl,
++                SUPABASE_SECRET_KEY: "sb_secret_test",
++                ORDERS_DB: { prepare },
++            };
++            const request = (path, method = "GET") =>
++                new Request(`https://example.com${path}`, {
++                    method,
++                    headers: {
++                        Authorization: `Bearer ${token}`,
++                        ...(method === "PATCH"
++                            ? { "Content-Type": "application/json" }
++                            : {}),
++                    },
++                    ...(method === "PATCH"
++                        ? { body: JSON.stringify({
++                            registrationCode: "HACYPAA-TEST",
++                            status: "cancelled",
++                        }) }
++                        : {}),
++                });
++
++            const session = await worker.fetch(
++                request("/admin/session"),
++                env,
++            );
++            expect(session.status).toBe(200);
++            expect(session.headers.get("Cache-Control")).toBe("no-store");
++            expect(await session.json()).toEqual({
++                ok: true,
++                role,
++                permissions: {
++                    registrations: role !== "volunteer_admin",
++                    volunteers: role !== "prereg_admin",
++                },
++            });
++
++            const registrations = await worker.fetch(
++                request("/admin/registrations"),
++                env,
++            );
++            expect(registrations.status).toBe(
++                role === "volunteer_admin" ? 403 : 200,
++            );
++
++            const panelists = await worker.fetch(
++                request("/admin/panelists"),
++                env,
++            );
++            expect(panelists.status).toBe(
++                role === "prereg_admin" ? 403 : 200,
++            );
++
++            if (role === "volunteer_admin") {
++                const status = await worker.fetch(
++                    request("/admin/registrations/status", "PATCH"),
++                    env,
++                );
++                expect(status.status).toBe(403);
++                expect(await status.json()).toMatchObject({
++                    ok: false,
++                    error: "Forbidden",
++                });
++                expect(prepare).toHaveBeenCalledOnce();
++            } else {
++                expect(prepare).toHaveBeenCalledTimes(
++                    role === "super_admin" ? 2 : 1,
++                );
++            }
++        });
++    }
++
++    it("rejects unknown admin roles", async () => {
++        const supabaseUrl = "https://unknown-role.supabase.co";
++        const { jwk, token, userId } =
++            await createSupabaseTestToken({ supabaseUrl });
++        vi.stubGlobal("fetch", vi.fn(async (input) => {
++            const url = String(input);
++            if (url.endsWith("/auth/v1/.well-known/jwks.json")) {
++                return Response.json({ keys: [jwk] });
++            }
++            if (url.includes("/rest/v1/admin_users")) {
++                return Response.json([{
++                    user_id: userId,
++                    role: "unrecognized_admin",
++                }]);
++            }
++            throw new Error(`Unexpected fetch: ${url}`);
++        }));
++
++        const response = await worker.fetch(
++            new Request("https://example.com/admin/session", {
++                headers: { Authorization: `Bearer ${token}` },
++            }),
++            {
++                SUPABASE_URL: supabaseUrl,
++                SUPABASE_SECRET_KEY: "sb_secret_test",
++            },
++        );
++
++        expect(response.status).toBe(403);
++        expect(await response.json()).toMatchObject({
++            ok: false,
++            error: "Forbidden",
++        });
++    });
++
+ 	it("returns panelist records to an authorized admin", async () => {
+ 		const supabaseUrl =
+ 			"https://panelist-admin.supabase.co";
+@@ -1762,7 +1893,7 @@
+ 						JSON.stringify([
+ 							{
+ 								user_id: userId,
+-								role: "prereg_admin",
++								role: "volunteer_admin",
+ 							},
+ 						]),
+ 						{
+--- a/assets/js/preregistration-admin.js
++++ b/assets/js/preregistration-admin.js
+@@ -88,6 +88,7 @@
+     }
+ 
+     let activeView = "registrations";
++    let permissions = { registrations: false, volunteers: false };
+ 
+     let currentPanelists = [];
+ 
+@@ -102,6 +103,10 @@
+     }
+ 
+     function showAdminView(viewName) {
++        if (!permissions[viewName]) {
++            return;
++        }
++
+         const showVolunteers =
+             viewName === "volunteers";
+ 
+@@ -539,7 +544,7 @@
+                 panelist.status,
+             panelist.adminNotes,
+             formatDate(panelist.createdAt),
+-            formatDate(panelist.updateAt),
++            formatDate(panelist.updatedAt),
+         ]);
+ 
+         const csv = [headings, ...rows]
+@@ -577,7 +582,73 @@
+         );
+     }
+ 
++    async function loadAdminAccess() {
++        loginFeedback.textContent = "Checking access...";
++
++        try {
++            const adminToken = await adminAuth.getAccessToken();
++
++            if (!adminToken) {
++                showLogin("Your admin session has expired.");
++                return;
++            }
++
++            const response = await fetch(
++                apiBase + "/admin/session",
++                {
++                    headers: {
++                        Authorization: `Bearer ${adminToken}`,
++                    },
++                },
++            );
++            const data = await response.json().catch(() => null);
++
++            if (response.status === 401 || response.status === 403) {
++                await adminAuth.signOut();
++                showLogin(
++                    data?.error || "This account is not authorized.",
++                );
++                return;
++            }
++
++            if (!response.ok || data?.ok !== true) {
++                throw new Error(
++                    data?.error || "Could not verify admin access.",
++                );
++            }
++
++            permissions = {
++                registrations: data.permissions?.registrations === true,
++                volunteers: data.permissions?.volunteers === true,
++            };
++
++            if (!permissions.registrations && !permissions.volunteers) {
++                throw new Error("This account has no assigned dashboard access.");
++            }
++
++            registrationViewButton.hidden = !permissions.registrations;
++            volunteerViewButton.hidden = !permissions.volunteers;
++            const initialView = permissions.registrations
++                ? "registrations"
++                : "volunteers";
++
++            showAdminView(initialView);
++            showDashboard();
++
++            if (initialView === "registrations") {
++                await loadRegistrations();
++            } else {
++                await loadPanelists();
++            }
++        } catch (error) {
++            showLogin(error.message || "Could not verify admin access.");
++        }
++    }
++
+     async function loadRegistrations() {
++        if (!permissions.registrations) {
++            return;
++        }
+         refreshButton.disabled = true;
+         loginFeedback.textContent = "Checking access...";
+         setFeedback("Loading registrations...", "pending");
+@@ -656,6 +727,10 @@
+     }
+ 
+     async function loadPanelists() {
++        if (!permissions.volunteers) {
++            return;
++        }
++
+         refreshButton.disabled = true;
+ 
+         setPanelistFeedback(
+@@ -741,6 +816,10 @@
+         nextStatus,
+         button,
+     ) {
++        if (!permissions.registrations) {
++            return;
++        }
++
+         const originalText = button.textContent;
+ 
+         button.disabled = true;
+@@ -918,14 +997,15 @@
+             setPanelistFeedback("");
+             setFeedback("");
+             panelistTableBody.replaceChildren();
+-            showAdminView("registrations");
++            permissions = { registrations: false, volunteers: false };
++            registrationViewButton.hidden = true;
++            volunteerViewButton.hidden = true;
+             await adminAuth.signOut();
+             currentPanelists = [];
+         },
+     );
+ 
+     adminAuth.onAuthenticated(function () {
+-        showAdminView("registrations");
+-        loadRegistrations();
++        loadAdminAccess();
+     });
+ })();
+--- a/assets/js/supabase-admin-auth.js
++++ b/assets/js/supabase-admin-auth.js
+@@ -144,7 +144,6 @@
+     function notifyAuthenticated() {
+         authenticated = true;
+         hideViews();
+-        dashboard.hidden = false;
+         setFeedback("");
+ 
+         for (const listener of authenticatedListeners) {
+--- a/admin/index.html
++++ b/admin/index.html
+@@ -288,7 +288,7 @@
+                 <h2>Admin dashboard</h2>
+ 
+                 <p class="admin-dashboard-intro">
+-                  Manage conference registration and volunteer records.
++                  Manage the conference records assigned to your role.
+                 </p>
+               </div>
+ 
