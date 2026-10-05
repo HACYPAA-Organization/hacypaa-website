@@ -14,6 +14,21 @@ const ALLOWED_ORIGINS = new Set([
 
 const SUPABASE_JWKS = new Map();
 
+const ADMIN_PERMISSIONS = Object.freeze({
+	super_admin: Object.freeze({
+		registrations: true,
+		volunteers: true,
+	}),
+	prereg_admin: Object.freeze({
+		registrations: true,
+		volunteers: true,
+	}),
+	volunteer_admin: Object.freeze({
+		registrations: false,
+		volunteers: true,
+	}),
+});
+
 const PAID_CHECKOUT_EVENT_TYPES = new Set([
 	"checkout.session.completed",
 	"checkout.session.async_payment_succeeded",
@@ -1483,7 +1498,7 @@ export async function authorizePreregAdmin(request, env) {
 		const admin =
 			Array.isArray(rows) ? rows[0] : null;
 
-		if (!admin) {
+		if (!admin || !Object.hasOwn(ADMIN_PERMISSIONS, admin.role)) {
 			return {
 				ok: false,
 				status: 403,
@@ -1509,6 +1524,36 @@ export async function authorizePreregAdmin(request, env) {
 			error: "Unauthorized",
 		};
 	}
+}
+
+export async function handleAdminSession(request, env, corsHeaders) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	const authorization = await authorizePreregAdmin(request, env);
+
+	if(!authorization.ok) {
+		return json(
+			{
+				ok: false,
+				error: authorization.error
+			},
+			authorization.status,
+			headers,
+		);
+	}
+
+	return json(
+		{
+			ok: true,
+			role: authorization.role,
+			premissions: ADMIN_PERMISSION[authorization.role],
+		},
+		200,
+		headers,
+	);
 }
 
 export async function handlePaymentReport(request, env, corsHeaders) {
@@ -1927,6 +1972,17 @@ export async function handleAdminRegistrations(
 		);
 	}
 
+	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.registrations) {
+		return json(
+			{
+				ok: false,
+				error: "Forbidden"
+			},
+			403,
+			headers,
+		);
+	}
+
 	if (!env.ORDERS_DB) {
 		return json(
 			{
@@ -2017,6 +2073,17 @@ export async function handleAdminPanelists(
 				error: adminAuthorization.error,
 			},
 			adminAuthorization.status,
+			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[adminAuthorization]?.volunteers) {
+		return json(
+			{
+				ok: false,
+				error: "Forbidden"
+			},
+			403,
 			headers,
 		);
 	}
