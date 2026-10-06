@@ -21,7 +21,7 @@ const ADMIN_PERMISSIONS = Object.freeze({
 	}),
 	prereg_admin: Object.freeze({
 		registrations: true,
-		volunteers: true,
+		volunteers: false,
 	}),
 	volunteer_admin: Object.freeze({
 		registrations: false,
@@ -1549,7 +1549,7 @@ export async function handleAdminSession(request, env, corsHeaders) {
 		{
 			ok: true,
 			role: authorization.role,
-			premissions: ADMIN_PERMISSION[authorization.role],
+			permissions: ADMIN_PERMISSIONS[authorization.role],
 		},
 		200,
 		headers,
@@ -2077,7 +2077,7 @@ export async function handleAdminPanelists(
 		);
 	}
 
-	if (!ADMIN_PERMISSIONS[adminAuthorization]?.volunteers) {
+	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.volunteers) {
 		return json(
 			{
 				ok: false,
@@ -2193,6 +2193,17 @@ async function handleAdminRegistrationStatus(
 			},
 			adminAuthorization.status,
 			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[adminAuthorization.role]?.registrations) {
+		return json(
+		{
+			ok: false,
+			error: "Forbidden"
+		},
+		403,
+		headers,
 		);
 	}
 
@@ -2630,6 +2641,13 @@ export default {
 				200,
 				{ "Cache-Control": "no-store" }
 			);
+		}
+
+		if (
+			request.method === "GET" &&
+			url.pathname === "/admin/session"
+		) {
+			return handleAdminSession(request, env, corsHeaders);
 		}
 
 		if (

@@ -17,6 +17,7 @@ import worker, {
 	sendRegistrationEmail,
  } from "../src/index.js";
 import {
+	errors,
 	exportJWK,
 	generateKeyPair,
 	SignJWT,
@@ -1535,6 +1536,51 @@ describe("HACYPAA checkout API", () => {
             role: "prereg_admin",
         });
         expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const prepare = vi.fn();
+
+		const panelistsResponse = await worker.fetch(
+			new Request("https://example.com/admin/panelists", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			}),
+			{
+				SUPABASE_URL: supabaseUrl,
+				SUPABASE_SECRET_KEY: "sb_secret_test",
+				ORDERS_DB: { prepare },
+			},
+		);
+
+		expect(panelistsResponse.status).toBe(403);
+		expect(await panelistsResponse.json()).toMatchObject({
+			ok: false,
+			error: "Forbidden",
+		});
+		expect(prepare).not.toHaveBeenCalled();
+
+		const sessionResponse = await worker.fetch(
+			new Request("https://example.com/admin/session", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			}),
+			{
+				SUPABASE_URL: supabaseUrl,
+				SUPABASE_SECRET_KEY: "sb_secret_test",
+			},
+		);
+
+		expect(sessionResponse.status).toBe(200);
+		expect(sessionResponse.headers.get("Cache-Control")).toBe("no-store");
+		expect(await sessionResponse.json()).toEqual({
+			ok: true,
+			role: "prereg_admin",
+			permissions: {
+				registrations: true,
+				volunteers: false,
+			},
+		});
     });
 
     it("rejects a Supabase admin session that has not completed MFA", async () => {
@@ -1762,7 +1808,7 @@ describe("HACYPAA checkout API", () => {
 						JSON.stringify([
 							{
 								user_id: userId,
-								role: "prereg_admin",
+								role: "volunteer_admin",
 							},
 						]),
 						{
@@ -1842,6 +1888,79 @@ describe("HACYPAA checkout API", () => {
 
 		expect(all).toHaveBeenCalledOnce();
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("blocks volunteer admins from registration records", async () => {
+		const supabaseUrl =
+			"https://volunteer-denied-registration.supabase.co";
+		const { jwk, token, userId } =
+			await createSupabaseTestToken({ supabaseUrl });
+		const prepare = vi.fn();
+
+		vi.stubGlobal("fetch", vi.fn(async (input) => {
+			const url = String(input);
+
+			if (url.endsWith("/auth/v1/.well-known/jwks.json")) {
+				return Response.json({ keys: [jwk] });
+			}
+
+			if (url.includes("/rest/v1/admin_users")) {
+				return Response.json([
+					{ user_id: userId, role: "volunteer_admin" },
+				]);
+			}
+
+			throw new Error(`Unexpected fetch: ${url}`);
+		}));
+
+		const response = await worker.fetch(
+			new Request("https://example.com/admin/registrations", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			}),
+			{
+				SUPABASE_URL: supabaseUrl,
+				SUPABASE_SECRET_KEY: "sb_secret_test",
+				ORDERS_DB: { prepare },
+			},
+		);
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toMatchObject({
+			ok: false,
+			error: "Forbidden",
+		});
+
+		const statusResponse = await worker.fetch(
+			new Request(
+				"https://example.com/admin/registrations/status",
+				{
+					method: "PATCH",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						registrationCode: "TEST-001",
+						status: "confirmed",
+					}),
+				},
+			),
+			{
+				SUPABASE_URL: supabaseUrl,
+				SUPABASE_SECRET_KEY: "sb_secret_test",
+				ORDERS_DB: { prepare },
+			},
+		);
+
+		expect(statusResponse.status).toBe(403);
+		expect(await statusResponse.json()).toMatchObject({
+			ok: false,
+			error: "Forbidden",
+		});
+
+		expect(prepare).not.toHaveBeenCalled();
 	});
 
 	it("accepts a valid panelist application", async () => {

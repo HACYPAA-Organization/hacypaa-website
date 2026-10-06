@@ -89,6 +89,11 @@
 
     let activeView = "registrations";
 
+    let permissions = {
+        registrations: false,
+        volunteers: false,
+    };
+
     let currentPanelists = [];
 
     function setPanelistFeedback(message, state = "") {
@@ -102,6 +107,9 @@
     }
 
     function showAdminView(viewName) {
+        if (!permissions[viewName]) {
+            return;
+        }
         const showVolunteers =
             viewName === "volunteers";
 
@@ -577,6 +585,77 @@
         );
     }
 
+    async function loadAdminAccess() {
+        const token = await adminAuth.getAccessToken();
+
+        if (!token) {
+            showLogin("Your admin session has expired.");
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                apiBase + "/admin/session",
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                },
+            );
+            const data = await response.json();
+
+            if (response.status === 401 || response.status === 403) {
+                await adminAuth.signOut();
+                showLogin(
+                    data?.error || "This account is not authorized.",
+                );
+                return;
+            }
+
+            if (!response.ok || data.ok !== true) {
+                throw new Error(
+                    data.error || "Could not verify admin access.",
+                );
+            }
+
+            permissions = {
+                registrations:
+                    data.permissions?.registrations === true,
+                volunteers:
+                    data.permissions?.volunteers === true,
+            };
+
+            registrationViewButton.hidden =
+                !permissions.registrations;
+            volunteerViewButton.hidden =
+                !permissions.volunteers;
+
+        if (!permissions.registrations && !permissions.volunteers) {
+            throw new Error(
+                "This account has no assigned dashboard access.",
+            );
+        }
+
+        const initialView = permissions.registrations
+            ? "registrations"
+            : "volunteers";
+
+        showAdminView(initialView);
+        showDashboard();
+
+        if (initialView === "registrations") {
+            await loadRegistrations();
+        } else {
+            await loadPanelists();
+        }
+
+        } catch (error) {
+            showLogin(
+                error.message || "Could not verify admin access.",
+            );
+        }
+    }
+
     async function loadRegistrations() {
         refreshButton.disabled = true;
         loginFeedback.textContent = "Checking access...";
@@ -918,14 +997,19 @@
             setPanelistFeedback("");
             setFeedback("");
             panelistTableBody.replaceChildren();
-            showAdminView("registrations");
+            permissions = {
+                registrations: false,
+                volunteers: false,
+            };
+
+            registrationViewButton.hidden = true;
+            volunteerViewButton.hidden = true;
             await adminAuth.signOut();
             currentPanelists = [];
         },
     );
 
     adminAuth.onAuthenticated(function () {
-        showAdminView("registrations");
-        loadRegistrations();
+        void loadAdminAccess();
     });
 })();

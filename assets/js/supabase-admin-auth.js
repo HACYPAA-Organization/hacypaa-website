@@ -144,7 +144,6 @@
     function notifyAuthenticated() {
         authenticated = true;
         hideViews();
-        dashboard.hidden = false;
         setFeedback("");
 
         for (const listener of authenticatedListeners) {
