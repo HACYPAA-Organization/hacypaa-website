@@ -474,19 +474,176 @@
                     "No topic preferences provided",
             );
 
-            addCell(
-                row,
-                panelistStatusLabels[panelist.status] ||
-                    panelist.status ||
-                    "Unknown",
+            row.dataset.panelistId = String(panelist.id);
+
+            const statusCell = addCell(row, "");
+            const statusSelect = document.createElement("select");
+
+            statusSelect.className = "admin-row-select";
+            statusSelect.dataset.panelistStatus = "";
+            statusSelect.setAttribute(
+                "aria-label",
+                `Status for panelist application ${panelist.id}`,
             );
+
+            for (const [value, label] of Object.entries(panelistStatusLabels))
+            {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = label;
+                statusSelect.append(option);
+            }
+
+            statusSelect.value = panelist.status || "new";
+            statusCell.append(statusSelect);
+
+            const notesCell = addCell(row, "");
+            const notesInput = document.createElement("textarea");
+
+            notesInput.className = "admin-row-notes";
+            notesInput.dataset.panelistNotes = "";
+            notesInput.rows = 3;
+            notesInput.maxLength = 5000;
+            notesInput.value = panelist.adminNotes || "";
+            notesInput.setAttribute(
+                "aria-label",
+                `Admin notes for panelist application ${panelist.id}`,
+            );
+
+            notesCell.append(notesInput);
 
             addCell(
                 row,
                 formatDate(panelist.createdAt),
             );
 
+            const actionsCell = addCell(row, "");
+            const saveButton = document.createElement("button");
+
+            saveButton.type = "button";
+            saveButton.className = "admin-row-button";
+            saveButton.dataset.panelistSave = "";
+            saveButton.textContent = "Save";
+            saveButton.setAttribute(
+                "aria-label",
+                `Save panelist application ${panelist.id}`,
+            );
+
+            actionsCell.append(saveButton);
             panelistTableBody.append(row);
+        }
+    }
+
+    async function savedPanelistChanges(row, button) {
+        const panelistId = Number(row.datset.panelistId);
+        const statusSelect = row.querySelector("[data-panelist-status]");
+        const notesInput = row.querySelector("[data-panelist-notes]");
+
+        if (
+            button.disabled ||
+            !Number.isSafeInteger(panelisId) ||
+            panelistId <= 0 ||
+            !statusSelect ||
+            !notesInput
+        ) {
+            return;
+        }
+
+        button.disabled = true;
+        statusSelect.disabled = true;
+        notesInput.disabled = true;
+        button.textContent = "Saving...";
+
+        setPanelistFeedbackFeedback(
+            `Saving panelist application ${panelistId}...`,
+            "panding",
+        );
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            const response = await fetch(
+                apiBase + "/admin/panelists",
+                {
+                    method: "PATCH",
+                    headers: {
+                        Authorization: `Bearer &{adminToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        panelistId,
+                        status: statusSelect.value,
+                        adminNotes: notesInput.value,
+                    }),
+                },
+            );
+
+            const data = await response.json().catch(() => null);
+
+            if (
+                response.status === 401 ||
+                response.status === 403
+            ) {
+                await adminAuth.signOut();
+                showLogin(
+                    data?.error || "Your admin session has expired."
+                );
+                return;
+            }
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                data?.panelist?.id !== panelistId
+            ) {
+                throw new Error(
+                    data?.error || "Could not save panelist changes.",
+                );
+            }
+
+            const savedPanelist = data.panelist;
+
+            currentPanelists = currentPanelists.map((panelist) =>
+                panelist.id === panelistId
+                    ? { ...panelist, ...savedPanelist }
+                    : panelist,
+            );
+
+            statusSelect.value = savedPanelist.status;
+            notesInput.value = savedPanelistChanges.adminNotes || "";
+
+            const newCount = currentPanelists.filter(
+                (panelist) => panelist.status === "new",
+            ).length;
+
+            const selectedCount = currentPanelists.filter(
+                (panelist) => panelist.status === "selected",
+            ).length;
+
+            panelistSummary.textContent =
+                `${currentPanelists.length} total · ` +
+                `${newCount} new · ` +
+                `${selectedCount} selected`;
+
+            setPanelistFeedback(
+                `Panelist application ${panelistId} saved.`,
+                "success",
+            );
+
+        } catch (error) {
+            setPanelistFeedback(
+                error.message || "Could not save panelist changes.",
+            );
+        } finally {
+            button.disabled = false;
+            statusSelect.disabled = false;
+            notesInput.disabled = false;
+            button.textContent = "Save";
         }
     }
 
@@ -905,6 +1062,28 @@
             button.textContent = originalText;
         }
     }
+
+    panelistTableBody.addEventListener("click", function (event) {
+        const target = event.target;
+
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const button = target.closest("button[data-panelist-save]");
+
+        if (!button || !panelistTableBody.contains(button)) {
+            return;
+        }
+
+        const row = button.closest("tr");
+
+        if (!row) {
+            return;
+        }
+
+        void savedPanelistChanges(row, button);
+    });
 
     refreshButton.addEventListener("click", function () {
         if (activeView === "volunteers") {

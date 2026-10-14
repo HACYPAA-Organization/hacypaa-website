@@ -2415,3 +2415,38 @@ body:has(#panelist-form) .discord-widget-copy p {
     overflow-wrap: break-word;
   }
 }
+
+/* Panelist administration controls */
+#panelist-rows .admin-row-select,
+#panelist-rows .admin-row-notes {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line-dark);
+  border-radius: 0.625rem;
+  background: var(--surface-dark);
+  color: var(--paper);
+  color-scheme: dark;
+  font: inherit;
+}
+
+#panelist-rows .admin-row-select {
+  min-width: 9.5rem;
+}
+
+#panelist-rows .admin-row-notes {
+  min-width: 18rem;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+#panelist-rows .admin-row-select:focus-visible,
+#panelist-rows .admin-row-notes:focus-visible {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 2px;
+}
+
+#panelist-rows .admin-row-select:disabled,
+#panelist-rows .admin-row-notes:disabled {
+  opacity: 0.55;
+}

@@ -2172,6 +2172,132 @@ export async function handleAdminPanelists(
 		);
 	}
 }
+
+export async function handleAdminPanelistsUpdate(
+	request,
+	env,
+	corsHeaders = {},
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	const authorization = await authorizePreregAdmin(request, env);
+
+	if (!authorization.ok) {
+		return json(
+			{ ok: false, error: authorization.error },
+			authorization.status,
+			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[authorization.role]?.volunteers) {
+		return json(
+			{ ok: false, error: "Forbidden" },
+			403,
+			headers,
+		);
+	}
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{ ok: false, error: "Request body must be valid JSON" },
+			400,
+			headers,
+		);
+	}
+
+	const panelistId = body?.panelistId;
+	const status = body?.status;
+	const adminNotes = body?.adminNotes;
+
+	const allowedStatuses = new Set([
+		"new",
+		"contacted",
+		"selected",
+		"declined",
+	]);
+
+	if (
+		!Number.isSafeInteger(panelistId) ||
+		panelistId <= 0 ||
+		!allowedStatuses.has(status) ||
+		typeof adminNotes !== "string" ||
+		adminNotes.length > 5000
+	) {
+		return json(
+			{
+				ok: false,
+				error: "A valid panelist ID, status, and notes of up to 5000 characters are required",
+			},
+			400,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{ ok: false, error: "Panelist records are temporarily unavailable" },
+			503,
+			headers,
+		);
+	}
+
+	const saveNotes = adminNotes.trim();
+	const updatedAt = Math.floor(Date.now() / 1000);
+
+	try {
+		const result = await env.ORDERS_DB.prepare(
+			`
+				UPDATE panelist_volunteers
+				SET status = ?, admin_notes = ?, updated_at = ?
+				WHERE id = ?
+			`,
+		)
+			.bind(status, savedNotes, updatedAt, panelistId)
+			.run();
+
+		if (!result.meta?.changes) {
+			return json(
+				{ ok: false, error: "Panelist application not found" },
+				404,
+				headers,
+			);
+		}
+
+		return json(
+			{
+				ok: true,
+				panelist: {
+					id: panelistId,
+					status,
+					adminNotes: savedNotes,
+					updatedAt,
+				},
+			},
+			200,
+			headers,
+		);
+	} catch (error) {
+		console.error("Admin panelist update failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{ ok: false, error: "Could not save panelist changes" },
+			503,
+			headers,
+		);
+	}
+}
+
 async function handleAdminRegistrationStatus(
 	request,
 	env,
@@ -2666,6 +2792,17 @@ export default {
 			url.pathname === "/admin/panelists"
 		) {
 			return handleAdminPanelists(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
+			request.method === "PATCH" &&
+			url.pathname === "admin/panelists"
+		) {
+			return handleAdminPanelistsUpdate(
 				request,
 				env,
 				corsHeaders,
