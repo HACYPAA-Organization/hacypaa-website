@@ -2450,3 +2450,118 @@ body:has(#panelist-form) .discord-widget-copy p {
 #panelist-rows .admin-row-notes:disabled {
   opacity: 0.55;
 }
+/* Scaryoke stacked flyer carousel */
+.scaryoke-poster-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.scaryoke-poster-gallery .event-poster-frame {
+  min-width: 0;
+  padding: 0.25rem;
+}
+
+.scaryoke-poster-gallery img {
+  border-radius: 0.5rem;
+}
+
+.scaryoke-poster-gallery.is-ready {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  padding: 0.75rem 1rem 0;
+}
+
+.scaryoke-poster-gallery.is-ready > .event-poster-frame {
+  grid-area: 1 / 1;
+  z-index: 1;
+  transform: translate(0.6rem, 0.4rem) rotate(3deg) scale(0.97);
+  pointer-events: none;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.scaryoke-poster-gallery.is-ready > .event-poster-frame.is-active {
+  z-index: 2;
+  transform: none;
+  pointer-events: auto;
+}
+
+.poster-carousel-controls:not([hidden]) {
+  grid-area: 2 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--text-light);
+  font-size: 0.75rem;
+}
+
+.poster-carousel-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--line-light);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.poster-carousel-arrow:hover {
+  border-color: var(--event-accent);
+  box-shadow: 0 0 0.75rem rgba(255, 24, 56, 0.15);
+}
+
+.poster-carousel-arrow:focus-visible {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scaryoke-poster-gallery.is-ready > .event-poster-frame {
+    transition: none;
+  }
+}
+
+@media (min-width: 801px) and (max-width: 1100px) {
+  .event-showcase[aria-labelledby="scaryoke-title"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 1.5rem;
+    padding: 2rem;
+  }
+
+  .event-showcase[aria-labelledby="scaryoke-title"]
+    > .event-poster-panel {
+    width: 100%;
+    max-width: none;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 800px) {
+  .event-showcase[aria-labelledby="scaryoke-title"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .event-showcase[aria-labelledby="scaryoke-title"]
+    > .event-poster-panel {
+    width: 100%;
+    max-width: 24rem;
+    justify-self: start;
+  }
+}
+
+/* Larger homepage flyer preview */
+.home-page .hero-event-preview {
+  max-width: 25rem;
+}
+
+.about-hero-art img {
+  mix-blend-mode: multiply;
+}

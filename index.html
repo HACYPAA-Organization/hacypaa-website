@@ -114,29 +114,73 @@
 
         <div class="hero-art">
           <div class="event-poster-panel hero-event-preview">
-            <span class="event-label">Previous event</span>
+          <div class="event-poster-panel">
+          <span class="event-label">Upcoming event</span>
 
-            <a
-              class="event-poster-frame"
-              href="/events/"
-              aria-label="View the D.A.A.R.E event recap"
-            >
-              <picture>
-                <source srcset="/assets/images/AA_14.webp" type="image/webp" />
+            <div class="scaryoke-poster-gallery">
+              <a 
+                class="event-poster-frame"
+                href="/events/index.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open the first Scaryoke fly at full size"
+              >
                 <img
-                  src="/assets/images/AA_14.webp"
-                  width="1545"
-                  height="1999"
+                  src="/assets/images/scaryoke-2026-1.png"
+                  alt="Scaryoke flyer featuring a feathered custome"
+                  loading="lazy"
                   decoding="async"
-                  fetchpriority="high"
-                  alt="Poster for the D.A.A.R.E Auction and Glow party"
-                  />
-              </picture>
-            </a>
+                />  
+              </a>
+
+              <a
+                class="event-poster-frame"
+                href="/events/index.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open the second Scaryoke flyer at full size"
+              >
+                <img
+                  src="/assets/images/scaryoke-2026-2.png"
+                  alt="Scaryoke flyer featuring an egg costume"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+
+              <div
+                class="poster-carousel-controls"
+                role="group"
+                aria-label="Flyer navigation"
+                hidden
+              >
+                <button
+                  class="poster-carousel-arrow"
+                  type="button"
+                  data-poster-prev
+                  aria-label="Previous flyer"
+                >
+                  &larr;
+                </button>
+
+                <span data-poster-count aria-live="polite" aria-atomic="true">
+                  Flyer 1 of 2
+                </span>
+
+                <button
+                  class="poster-carousel-arrow"
+                  type="button"
+                  data-poster-next
+                  aria-label="Next flyer"
+                >
+                  &rarr;
+                </button>
+              </div>
+            </div>
           </div>
 
           <p class="art-number">More fun ahead</p>
-          <p class="art-caption">Click to view<br />event recap</p>
+          <p class="art-caption">Click poster to view<br />new event</p>
         </div>
       </section>
 
@@ -198,5 +242,6 @@
       </footer>
     </main>
     <script src="/assets/js/script.js"></script>
+    <script src="/assets/js/event-posters.js"></script>
   </body>
 </html>
