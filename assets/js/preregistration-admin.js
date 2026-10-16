@@ -260,6 +260,7 @@
                     `Sobriety date: ${registration.sobrietyDate || "Not provided"}`,
                     `Location: ${registration.location || "Not provided"}`,
                     `Fellowship: ${fellowships}`,
+                    `Dietary restrictions: ${registration.dietaryRestrictions || "None reported"}`,
                     `Accommodations: ${accommodations}`,
                     `Volunteer: ${
                         registration.volunteerInterest ? "Yes" : "No"
@@ -299,12 +300,66 @@
             }
 
             addCell(row, paymentText);
+
+            const notesCell = addCell(row, "");
+            notesCell.classList.add("admin-followup-cell");
+
+            const contactedLabel = document.createElement("label");
+            contactedLabel.className = "admin-followup-toggle";
+
+            const contactedInput = document.createElement("input");
+            contactedInput.type = "checkbox";
+            contactedInput.dataset.accessibilityContacted = "";
+            contactedInput.checked = Boolean(
+                registration.accessibilityContactedAt,
+            );
+
+            contactedLabel.append(
+                contactedInput,
+                document.createTextNode("Accessibility needs discussed"),
+            );
+
+            const notesInput = document.createElement("textarea");
+            notesInput.className = "admin-row-notes";
+            notesInput.dataset.accessibilityNotes = "";
+            notesInput.rows = 3;
+            notesInput.maxLength = 5000;
+            notesInput.value = registration.accessibilityNotes || "";
+            notesInput.placeholder = "Accessibility follow-up notes";
+            notesInput.setAttribute(
+                "aria-label",
+                `Accessibility notes for ${registration.registrationCode}`,
+            );
+
+            const contactSummary = document.createElement("small");
+            contactSummary.className = "admin-followup-status";
+            contactSummary.dataset.accessibilitySummary = "";
+            contactSummary.textContent = registration.accessibilityContactedAt
+                ? `Discussed ${formatDate(registration.accessibilityContactedAt)}`
+                : "No discussion recorded";
+
+            notesCell.append(
+                contactedLabel,
+                notesInput,
+                contactSummary,
+            );
+
             addCell(row, formatDate(registration.createdAt));
 
-
             const actionsCell = addCell(row, "");
-
             actionsCell.classList.add("admin-row-actions");
+
+            const saveFollowupButton = document.createElement("button");
+            saveFollowupButton.type = "button";
+            saveFollowupButton.className = "admin-row-button";
+            saveFollowupButton.dataset.accessibilitySave = "";
+            saveFollowupButton.textContent = "Save";
+            saveFollowupButton.setAttribute(
+                "aria-label",
+                `Save accessibility follow-up for ${registration.registrationCode}`,
+            );
+
+            actionsCell.append(saveFollowupButton);
 
             if (registration.status === "payment_reported") {
                 actionsCell.append(
@@ -535,13 +590,13 @@
     }
 
     async function savedPanelistChanges(row, button) {
-        const panelistId = Number(row.datset.panelistId);
+        const panelistId = Number(row.dataset.panelistId);
         const statusSelect = row.querySelector("[data-panelist-status]");
         const notesInput = row.querySelector("[data-panelist-notes]");
 
         if (
             button.disabled ||
-            !Number.isSafeInteger(panelisId) ||
+            !Number.isSafeInteger(panelistId) ||
             panelistId <= 0 ||
             !statusSelect ||
             !notesInput
@@ -554,7 +609,7 @@
         notesInput.disabled = true;
         button.textContent = "Saving...";
 
-        setPanelistFeedbackFeedback(
+        setPanelistFeedback(
             `Saving panelist application ${panelistId}...`,
             "panding",
         );
@@ -572,7 +627,7 @@
                 {
                     method: "PATCH",
                     headers: {
-                        Authorization: `Bearer &{adminToken}`,
+                        Authorization: `Bearer ${adminToken}`,
                         "Content-Type": "application/json",
                     },
                     body: JSON.stringify({
@@ -615,7 +670,7 @@
             );
 
             statusSelect.value = savedPanelist.status;
-            notesInput.value = savedPanelistChanges.adminNotes || "";
+            notesInput.value = savedPanelist.adminNotes || "";
 
             const newCount = currentPanelists.filter(
                 (panelist) => panelist.status === "new",
@@ -704,7 +759,7 @@
                 panelist.status,
             panelist.adminNotes,
             formatDate(panelist.createdAt),
-            formatDate(panelist.updateAt),
+            formatDate(panelist.updatedAt),
         ]);
 
         const csv = [headings, ...rows]
@@ -1062,6 +1117,118 @@
             button.textContent = originalText;
         }
     }
+
+    async function saveAccessibilityChanges(row, button) {
+        const registrationCode = row.dataset.registrationCode || "";
+        const contactedInput = row.querySelector("[data-accessibility-contacted]");
+        const notesInput = row.querySelector("[data-accessibility-notes]");
+        const contactedSummary = row.querySelector("[data-accessibility-summary]");
+
+        if (
+            button.disabled ||
+            !registrationCode ||
+            !contactedInput ||
+            !notesInput ||
+            !contactedSummary
+        ) {
+            return;
+        }
+
+        button.disabled = true;
+        contactedInput.disabled = true;
+        notesInput.disabled = true;
+        button.textContent = "Saving...";
+        setFeedback(`Saving ${registrationCode} accessibility follow-up...`,
+            "pending"
+        );
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            const response = await fetch(
+                apiBase + "/admin/registrations/accessibility",
+                {
+                    method: "PATCH",
+                    headers: {
+                        Authorization: `Bearer ${adminToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        registrationCode,
+                        contacted: contactedInput.checked,
+                        accessibilityNotes: notesInput.value,
+                    }),
+                },
+            );
+
+            const data = await response.json().catch(() => null);
+
+            if (response.status === 401 || response.status === 403) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            const saved = data?.registration;
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                saved?.registrationCode !== registrationCode ||
+                typeof saved?.accessibilityNotes !== "string"
+            ) {
+                throw new Error(
+                    data?.error || "Could not save accessibility follow-up.",
+                );
+            }
+
+            contactedInput.checked = Boolean(saved.accessibilityContactedAt);
+            notesInput.value = saved.accessibilityNotes;
+            contactedSummary.textContent = saved. accessibilityContactedAt
+                ? `Discussed ${formatDate(saved.accessibilityContactedAt)}`
+                : "No discussion recorded";
+
+            setFeedback(
+                `${registrationCode} accessibility follow-up saved.`,
+                "success",
+            );
+        } catch (error) {
+            setFeedback(
+                error?.message || "Could not save accessibility follow-up.",
+                "error",
+            );
+        } finally {
+            button.disabled = false;
+            contactedInput.disabled = false;
+            notesInput.disabled = false;
+            button.textContent = "Save";
+        }
+    }
+
+    tableBody.addEventListener("click", function (event) {
+        const target = event.target;
+
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const button = target.closest("button[data-accessibility-save]");
+
+        if (!button || !tableBody.contains(button)) {
+            return;
+        }
+
+        const row = button.closest("tr");
+
+        if (row) {
+            void saveAccessibilityChanges(row, button);
+        }
+    });
 
     panelistTableBody.addEventListener("click", function (event) {
         const target = event.target;

@@ -129,6 +129,9 @@
                     fields.has("accommodationMobility"),
                 accommodationAsl:
                     fields.has("accommodationAsl"),
+                dietaryRestrictions: String(
+                    fields.get("dietaryRestrictions") || ""
+                ).trim(),
                 accommodationDetails: String(
                     fields.get("accommodationDetails") || "",
                 ).trim(),

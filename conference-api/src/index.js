@@ -979,6 +979,7 @@ export async function storeRegistration(db, registration) {
 				fellowship_alanon,
 				accommodation_mobility,
 				accommodation_asl,
+				dietary_restrictions,
 				accommodation_details,
 				volunteer_interest,
 				scholarship_donation,
@@ -990,7 +991,7 @@ export async function storeRegistration(db, registration) {
             )
             VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?,
-					?, ?, ?, ?, ?, ?, ?, ?, ?,
+					?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 					'usd', 'awaiting_payment', ?
 			)
             ON CONFLICT (submission_key) DO NOTHING
@@ -1008,6 +1009,7 @@ export async function storeRegistration(db, registration) {
 			registration.fellowshipAlanon,
 			registration.accommodationMobility,
 			registration.accommodationAsl,
+			registration.dietaryRestrictions ?? "",
 			registration.accommodationDetails,
 			registration.volunteerInterest,
 			registration.scholarshipDonation,
@@ -1948,6 +1950,143 @@ export async function handlePanelistApplication(
 	}
 }
 
+export async function handleAdminAccessibilityUpdate(
+	request,
+	env,
+	corsHeaders = {},
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	const authorization = await authorizePreregAdmin(request, env);
+
+	if (!authorization.ok) {
+		return json(
+			{
+				ok: false, error: authorization.error
+			},
+			authorization.status,
+			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[authorization.role]?.registrations) {
+		return json({ ok: false, error: "Forbidden" }, 403, headers);
+	}
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{
+				ok: false, error: "Request body must be valid JSON" 
+			},
+			400,
+			headers,
+		);
+	}
+
+	const registrationCode = cleanText(body?.registrationCode).toUpperCase();
+	const contacted = body?.contacted;
+	const notes = body?.accessibilityNotes;
+
+	if (
+		!registrationCode ||
+		registrationCode.length > 80 ||
+		typeof contacted !== "boolean" ||
+		typeof notes !== "string" ||
+		notes.length > 5000
+	) {
+		return json(
+			{
+				ok: false,
+				error: "A registration code, contacted status, and notes of up to 5000 characters are required",
+			},
+			400,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{ ok: false, error: "Registration records are temporarily unavailable" },
+			503,
+			headers,
+		);
+	}
+
+
+	const now = Math.floor(Date.now() / 1000);
+	const contactedFlag = contacted ? 1 : 0;
+
+	try {
+		const results = await env.ORDERS_DB.batch([
+			env.ORDERS_DB.prepare(`
+				UPDATE registrations
+				SET
+					accessibility_contacted_at = CASE
+						WHEN ? = 1 THEN COALESCE(accessibility_contacted_at,
+						?)
+						ELSE NULL
+					END,
+					accessibility_contacted_by = CASE
+						WHEN ? = 1 THEN COALESCE(accessibility_contacted_by,
+						?)
+						ELSE NULL
+					END,
+					accessibility_notes = ?,
+					updated_at = ?
+				WHERE registration_code = ?
+			`).bind(
+				contactedFlag,
+				now,
+				contactedFlag,
+				authorization.userId,
+				notes.trim(),
+				now,
+				registrationCode,
+			),
+			env.ORDERS_DB.prepare(`
+				SELECT
+					registration_code AS registrationCode,
+					accessibility_contacted_at AS accessibilityContactedAt,
+					accessibility_contacted_by AS accessibilityContactedBy,
+					accessibility_notes AS accessibilityNotes,
+					updated_at AS updatedAt
+				FROM registrations
+				WHERE registration_code = ?	
+			`).bind(registrationCode),
+		]);
+
+		const registration = results[1]?.results?.[0];
+
+		if (!registration) {
+			return json(
+				{ ok: false, error: "Registration not found" },
+				404,
+				headers,
+			);
+		}
+
+		return json({ ok: true, registration }, 200, headers);
+	} catch (error) {
+		console.error("Admin accessibility update failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{ ok: false, error: "Could not save accessibility follow-up" },
+			503,
+			headers,
+		);
+	}
+}
+
 export async function handleAdminRegistrations(
 	request,
 	env,
@@ -2010,6 +2149,11 @@ export async function handleAdminRegistrations(
 				accommodation_mobility AS accommodationMobility,
 				accommodation_asl AS accommodationAsl,
 				accommodation_details AS accommodationDetails,
+				dietary_restrictions AS dietaryRestrictions,
+				accessibility_contacted_at AS accessibilityContactedAt,
+				accessibility_contacted_by AS accessibilityContactedBy,
+				accessibility_notes AS accessibilityNotes,
+				accessibility_notification_sent_at AS accessibilityNotificationSentAt,
 				volunteer_interest AS volunteerInterest,
 				scholarship_donation AS scholarshipDonation,
 				preferred_payment_method AS preferredPaymentMethod,
@@ -2249,7 +2393,7 @@ export async function handleAdminPanelistsUpdate(
 		);
 	}
 
-	const saveNotes = adminNotes.trim();
+	const savedNotes = adminNotes.trim();
 	const updatedAt = Math.floor(Date.now() / 1000);
 
 	try {
@@ -2800,9 +2944,20 @@ export default {
 
 		if (
 			request.method === "PATCH" &&
-			url.pathname === "admin/panelists"
+			url.pathname === "/admin/panelists"
 		) {
 			return handleAdminPanelistsUpdate(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
+			request.method === "PATCH" &&
+			url.pathname === "/admin/registrations/accessibility"
+		) {
+			return handleAdminAccessibilityUpdate(
 				request,
 				env,
 				corsHeaders,
@@ -2930,6 +3085,9 @@ export default {
 			const accommodationAsl =
 				body?.accommodationAsl === true ? 1 : 0;
 
+			const dietaryRestrictions =
+				cleanText(body?.accommodationDetails) || "";
+
 			const accommodationDetails =
 				cleanText(body?.accommodationDetails) || null;
 
@@ -2987,6 +3145,7 @@ export default {
 				!validSobrietyDate ||
 				location.length > 150 ||
 				(homeGroup?.length || 0) > 150 ||
+				dietaryRestrictions.length > 500 ||
 				(accommodationDetails?.length || 0) > 500 ||
 				hasInvalidBoolean ||
 				typeof body.volunteerInterest !== "boolean" ||
@@ -3058,6 +3217,7 @@ export default {
 					fellowshipAlanon,
 					accommodationMobility,
 					accommodationAsl,
+					dietaryRestrictions,
 					accommodationDetails,
 					volunteerInterest,
 					scholarshipDonation,
