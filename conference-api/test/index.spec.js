@@ -2230,3 +2230,76 @@ describe("HACYPAA checkout API", () => {
 		}
 	});
 });
+
+describe("Admin deletion permissions", () => {
+	it.each([
+		{
+			role: "volunteer_admin",
+			resource: "registrations",
+			body: { registrationCode: "HACXI-DELETE-TEST" },
+		},
+		{
+			role: "prereg_admin",
+			resource: "panelists",
+			body: { panelistId: 7 },
+		},
+	])(
+		"blocks $role from deleting $resource",
+		async ({ role, resource, body }) => {
+			const supabaseUrl =
+				"https://delete-" + resource + ".supabase.co";
+			const { jwk, token, userId } =
+				await createSupabaseTestToken({ supabaseUrl });
+
+			const prepare = vi.fn();
+			const batch = vi.fn();
+
+			vi.stubGlobal("fetch", vi.fn(async (input) => {
+				const url = String(input);
+
+				if (url.endsWith("/auth/v1/.well-known/jwks.json")) {
+					return Response.json({ keys: [jwk] });
+				}
+
+				if (url.includes("/rest/v1/admin_users")) {
+					return Response.json([
+						{ user_id: userId, role },
+					]);
+				}
+
+				throw new Error("Unexpected fetch: " + url);
+			}));
+
+			const response = await worker.fetch(
+				new Request(
+					"https://example.com/admin/" + resource,
+					{
+						method: "DELETE",
+						headers: {
+							Origin: allowedOrigin,
+							Authorization: "Bearer " + token,
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify(body),
+					},
+				),
+				{
+					SUPABASE_URL: supabaseUrl,
+					SUPABASE_SECRET_KEY: "sb_secret_test",
+					ORDERS_DB: { prepare, batch },
+				},
+			);
+
+			expect(response.status).toBe(403);
+			expect(await response.json()).toMatchObject({
+				ok: false,
+				error: "Forbidden",
+			});
+			expect(
+				response.headers.get("Access-Control-Allow-Origin"),
+			).toBe(allowedOrigin);
+			expect(prepare).not.toHaveBeenCalled();
+			expect(batch).not.toHaveBeenCalled();
+		},
+	);
+});

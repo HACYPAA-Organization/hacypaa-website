@@ -437,6 +437,23 @@
                 actionsCell.textContent = "—";
             }
 
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "admin-row-button";
+            deleteButton.dataset.tone = "danger";
+            deleteButton.dataset.registrationDelete = "";
+            deleteButton.textContent = "Delete";
+            deleteButton.disabled = !permissions.registrations;
+            deleteButton.setAttribute(
+                "aria-label",
+                `Dete registration ${registration.registrationCode}`,
+            );
+
+            deleteButton.addEventListener("click", function () {
+                void deleteRegistration(row, deleteButton);
+            });
+
+            actionsCell.append(deleteButton);
             tableBody.append(row);
         }
     }
@@ -593,7 +610,25 @@
                 `Save panelist application ${panelist.id}`,
             );
 
-            actionsCell.append(saveButton);
+            actionsCell.classList.add("admin-row-actions");
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "admin-row-button";
+            deleteButton.dataset.tone = "danger";
+            deleteButton.dataset.panelistDelete = "";
+            deleteButton.textContent = "Delete";
+            deleteButton.disabled = !permissions.volunteers;
+            deleteButton.setAttribute(
+                "aria-label",
+                `Delete panelist application ${panelist.id}`,
+            );
+
+            deleteButton.addEventListener("click", function () {
+                void deletePanelist(row, deleteButton);
+            });
+
+            actionsCell.append(saveButton, deleteButton);
             panelistTableBody.append(row);
         }
     }
@@ -764,7 +799,7 @@
 
             doc.autoTable({
                 startY: 90,
-                margin: { top: 90, rigth: 36, bottom: 48, left: 36 },
+                margin: { top: 90, right: 36, bottom: 48, left: 36 },
                 theme: "grid",
                 showHead: "everyPage",
                 rowPageBreak: "avoid",
@@ -1104,8 +1139,115 @@
         exportRegistrationsButton.textContent = "Export CSV";
         exportRegistrationsButton.disabled =
             !permissions.registrations || dashboard.hidden;
+        }
     }
-}
+
+    async function exportPanelistsPdf() {
+        if (
+            !permissions.volunteers ||
+            exportPanelistsPdfButton.disabled
+        ) {
+            return;
+        }
+
+        exportPanelistsPdfButton.disabled = true;
+        exportPanelistsPdfButton.textContent = "Exporting...";
+        setPanelistFeedback("Preparing panelist PDF...", "pending");
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            const response = await fetch(apiBase + "/admin/panelists", {
+                headers: {
+                    Authorization: "Bearer " + adminToken,
+                },
+                cache: "no-store",
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.status === 401 || response.status === 403) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                !Array.isArray(data.panelists)
+            ) {
+                throw new Error(data?.error || "Could not export panelist PDF.");
+            }
+
+            if (!permissions.volunteers || dashboard.hidden) {
+                return;
+            }
+
+            if (data.panelists.length === 0) {
+                setPanelistFeedback("There are no panelist records to export.", "error");
+                return;
+            }
+
+            const records = data.panelists.map((p) => ({
+                heading: [p.firstName, p.lastName].filter(Boolean).join(" "),
+                reference: "Panelist application " + p.id,
+                rows: [
+                    ["Contact", [
+                        "Email: " + (p.email || "Not provided"),
+                        "Phone: " + (p.phoneNumber || "Not provided"),
+                    ].join("\n")],
+                    ["Step preferences",
+                        Array.isArray(p.stepPreferences)
+                            ? p.stepPreferences.join(", ") || "None selected"
+                            : "None selected",
+                    ],
+                    ["Recovery", [
+                        "Sobriety date: " + (p.sobrietyDate || "Not provided"),
+                        "Has sponsor: " + (p.hasSponsor ? "Yes" : "No"),
+                        "Worked Steps: " + (p.workedSteps ? "Yes" : "No"),
+                    ].join("\n")],
+                    ["Location", p.location],
+                    ["Home group",
+                        p.hasHomeGroup
+                            ? p.homeGroup || "Not provided"
+                            : "No home group",
+                    ],
+                    ["Topic preferences", p.topicPreferences || "None provided"],
+                    ["Status", panelistStatusLabels[p.status] || p.status || "Unknown"],
+                    ["Admin notes", p.adminNotes || "No notes recorded"],
+                    ["Submitted", formatDate(p.createdAt)],
+                    ["Updated", formatDate(p.updatedAt)],
+                ],
+            }));
+
+            const date = new Date().toISOString().slice(0, 10);
+
+            downloadAdminPdf(
+                "Panelist volunteers",
+                "hacypaa-panelists-" + date + ".pdf",
+                records,
+            );
+
+            setPanelistFeedback(
+                records.length +" panelist applications exported to PDF.",
+                "success",
+            );
+        } catch (error) {
+            setPanelistFeedback(
+                error?.message || "Could not export panelist PDF.",
+                "error",
+            );
+        } finally {
+            exportPanelistsPdfButton.textContent = "Export PDF";
+            exportPanelistsPdfButton.disabled =
+                !permissions.volunteers || dashboard.hidden;
+        }
+    }
 
     function exportPanelists() {
         if (currentPanelists.length === 0) {
@@ -1240,6 +1382,8 @@
                 !permissions.registrations;
             exportRegistrationsPdfButton.disabled =
                 !permissions.registrations;
+            exportPanelistsPdfButton.disabled =
+                !permissions.volunteers;
 
         if (!permissions.registrations && !permissions.volunteers) {
             throw new Error(
@@ -1423,6 +1567,212 @@
             }
         } finally {
             refreshButton.disabled = false;
+        }
+    }
+
+    async function deletePanelist(row, button) {
+        const panelistId = Number(row?.dataset.panelistId);
+
+        if (
+            !permissions.volunteers ||
+            dashboard.hidden ||
+            !Number.isSafeInteger(panelistId) ||
+            panelistId <= 0 ||
+            !panelistTableBody.contains(row) ||
+            button.disabled
+        ) {
+            return;
+        }
+
+        const panelist = currentPanelists.find(
+            (record) => Number(record.id) === panelistId,
+        );
+        const applicantName = [
+            panelist?.firstName,
+            panelist?.lastName,
+        ].filter(Boolean).join(" ") || "Name not provided";
+
+        const approved = window.confirm(
+            "Permanently delete panelist application " + panelistId +
+            " for " + applicantName + "?\n\n" +
+            "This removes the application and its saved admin notes. " +
+            "This cannot not be undone.",
+        );
+
+        if (!approved) {
+            return;
+        }
+
+        const controls = Array.from(
+            row.querySelectorAll("button, input, textarea, select"),
+            (control) => ({ control, disabled: control.disabled }),
+        );
+        const originalText = button.textContent;
+
+        controls.forEach(({ control }) => {
+            control.disabled = true;
+        });
+        button.textContent = "Deleting...";
+        setPanelistFeedback("Deleting panelist application...", "pending");
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            if (!permissions.volunteers || dashboard.hidden) {
+                return;
+            }
+
+            const response = await fetch(apiBase + "/admin/panelists", {
+                method: "DELETE",
+                headers: {
+                    Authorization: "Bearer " + adminToken,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ panelistId }),
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.status === 401) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            if (!response.ok || data?.ok !== true) {
+                throw new Error(
+                    data?.error || "Could not delete panelist application.",
+                );
+            }
+
+            if (!permissions.volunteers || dashboard.hidden) {
+                return;
+            }
+
+            renderPanelists(
+                currentPanelists.filter(
+                    (record) => Number(record.id) !== panelistId,
+                ),
+            );
+            setPanelistFeedback(
+                "Panelist application " + panelistId + " deleted.",
+                "success",
+            );
+        } catch (error) {
+            setPanelistFeedback(
+                error?.message || "Could not delete panelist application.",
+                "error",
+            );
+        } finally {
+            controls.forEach(({ control, disabled }) => {
+                control.disabled = disabled;
+            });
+            button.textContent = originalText;
+        }
+    }
+
+    async function deleteRegistration(row, button) {
+        const registrationCode = row?.dataset.registrationCode || "";
+
+        if (
+            !permissions.registrations ||
+            dashboard.hidden ||
+            !registrationCode ||
+            !tableBody.contains(row) ||
+            button.disabled
+        ) {
+            return;
+        }
+
+        const approved = window.confirm(
+            "Permanently delete registration " + registrationCode + "?\n\n" +
+            "This removes its notes, event history, and receipts. " +
+            "This cannot be undone and does not refund a payment.",
+        );
+
+        if (!approved) {
+            return;
+        }
+
+        const controls = Array.from(
+            row.querySelector("button, input, textarea, select"),
+            (control) => ({ control, disabled: control.disabled }),
+        );
+        const originalText = button.textContent;
+
+        controls.forEach(({ control }) => {
+            control.disabled = true;
+        });
+        button.textContent = "Deleting...";
+        setFeedback("Deleting " + registrationCode + "...", "pending");
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            if (!permissions.registrations || dashboard.hidden) {
+                return;
+            }
+
+            const response = await fetch(apiBase + "/admin/registrations", {
+                method: "DELETE",
+                headers: {
+                    Authorization: "Bearer " + adminToken,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ registrationCode }),
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.status === 401) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            if (!response.ok || data?.ok !== true) {
+                throw new Error(data?.error || "Could not delete registration.");
+            }
+
+            if (!permissions.registrations || dashboard.hidden) {
+                return;
+            }
+
+            row.remove();
+            summary.textContent = "";
+            emptyMessage.hidden = tableBody.children.length !== 0;
+            await loadRegistrations();
+
+            if (!permissions.registrations || dashboard.hidden) {
+                return;
+            }
+
+            if (feedback.dataset.state === "error") {
+                setFeedback(
+                    registrationCode + " was deleted. " + feedback.textContent,
+                    "error",
+                );
+            } else {
+                setFeedback(registrationCode + " deleted.", "success");
+            }
+        } catch (error) {
+            setFeedback(
+                error?.message || "Could not delete registration.",
+                "error",
+            );
+        } finally {
+            controls.forEach(({ control, disabled }) => {
+                control.disabled = disabled;
+            });
+            button.textContent = originalText;
         }
     }
 
@@ -1662,6 +2012,11 @@
     exportRegistrationsPdfButton.addEventListener(
         "click",
         exportRegistrationsPdf,
+    );
+
+    exportPanelistsPdfButton.addEventListener(
+        "click",
+        exportPanelistsPdf,
     );
 
     exportRegistrationsButton.addEventListener(

@@ -38,7 +38,7 @@ function getCorsHeaders(request) {
 	const origin = request.headers.get("Origin");
 
 	const headers = {
-		"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+		"Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Stripe-Signature, Authorization",
 		Vary: "Origin",
 	};
@@ -2087,6 +2087,105 @@ export async function handleAdminAccessibilityUpdate(
 	}
 }
 
+export async function handleAdminRegistrationDelete(
+	request,
+	env,
+	corsHeaders = {},
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	const authorization = await authorizePreregAdmin(request, env);
+
+	if (!authorization.ok) {
+		return json(
+			{ ok: false, error: authorization.error },
+			authorization.status,
+			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[authorization.role]?.registrations) {
+		return json({ ok: false, error: "Forbidden" }, 403, headers);
+	}
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{ ok: false, error: "Request body must be valid JSON" },
+			400,
+			headers,
+		);
+	}
+
+	const registrationCode = cleanText(body?.registrationCode).toUpperCase();
+
+	if (!registrationCode || registrationCode.length > 80) {
+		return json(
+			{ ok: false, error: "A valid registration code is required" },
+			400,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{ ok: false, error: "Registration records are temporarily unavailable" },
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const results = await env.ORDERS_DB.batch([
+			env.ORDERS_DB.prepare(`
+				DELETE FROM registration_events
+				WHERE registration_id IN (
+				SELECT id FROM registrations
+				WHERE registration_code = ?
+				)
+			`).bind(registrationCode),
+			env.ORDERS_DB.prepare(`
+				DELETE FROM registration_receipts
+				WHERE registration_id IN (
+					SELECT id FROM registrations
+					WHERE registration_code = ?
+				)
+			`).bind(registrationCode),
+			env.ORDERS_DB.prepare(`
+				DELETE FROM registrations
+				WHERE registration_code = ?
+			`).bind(registrationCode),
+		]);
+
+		if (!results[2]?.meta?.changes) {
+			return json(
+				{ ok: false, error: "Registration not found" },
+				404,
+				headers,
+			);
+		}
+
+		return json({ ok: true, registrationCode }, 200, headers);
+	} catch (error) {
+		console.error("Admin registration delete failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{ ok: false, error: "Could not delete registration" },
+			503,
+			headers,
+		);
+	}
+}
+
 export async function handleAdminRegistrations(
 	request,
 	env,
@@ -2311,6 +2410,89 @@ export async function handleAdminPanelists(
 				ok: false,
 				error: "Could not load panelist records",
 			},
+			503,
+			headers,
+		);
+	}
+}
+
+export async function handleAdminPanelistDelete(
+	request,
+	env,
+	corsHeaders = {},
+) {
+	const headers = {
+		...corsHeaders,
+		"Cache-Control": "no-store",
+	};
+
+	const authorization = await authorizePreregAdmin(request, env);
+
+	if (!authorization.ok) {
+		return json(
+			{ ok: false, error: authorization.error },
+			authorization.status,
+			headers,
+		);
+	}
+
+	if (!ADMIN_PERMISSIONS[authorization.role]?.volunteers) {
+		return json({ ok: false, error: "Forbidden" }, 403, headers);
+	}
+
+	let body;
+
+	try {
+		body = await request.json();
+	} catch {
+		return json(
+			{ ok: false, error: "Request body must be valid JSON" },
+			400,
+			headers,
+		);
+	}
+
+	const panelistId = body?.panelistId;
+
+	if (!Number.isSafeInteger(panelistId) || panelistId <= 0) {
+		return json(
+			{ ok: false, error: "A valid panelist ID is required" },
+			400,
+			headers,
+		);
+	}
+
+	if (!env.ORDERS_DB) {
+		return json(
+			{ ok: false, error: "Panelist records are temporarily unavailable" },
+			503,
+			headers,
+		);
+	}
+
+	try {
+		const result = await env.ORDERS_DB.prepare(`
+			DELETE FROM panelist_volunteers
+			WHERE id = ?
+		`).bind(panelistId).run();
+
+		if (!result.meta?.changes) {
+			return json(
+				{ ok: false, error: "Panelist application not found" },
+				404,
+				headers,
+			);
+		}
+
+		return json({ ok: true, panelistId }, 200, headers);
+	} catch (error) {
+		console.error("Admin panelist delete failed", {
+			name: error?.name,
+			message: error?.message,
+		});
+
+		return json(
+			{ ok: false, error: "Could not delete panelist application" },
 			503,
 			headers,
 		);
@@ -2932,10 +3114,32 @@ export default {
 		}
 
 		if (
+			request.method === "DELETE" &&
+			url.pathname === "/admin/registrations"
+		) {
+			return handleAdminRegistrationDelete(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
 			request.method === "GET" &&
 			url.pathname === "/admin/panelists"
 		) {
 			return handleAdminPanelists(
+				request,
+				env,
+				corsHeaders,
+			);
+		}
+
+		if (
+			request.method === "DELETE" &&
+			url.pathname === "/admin/panelists"
+		) {
+			return handleAdminPanelistDelete(
 				request,
 				env,
 				corsHeaders,
