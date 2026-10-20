@@ -42,8 +42,14 @@
         document.querySelector("#panelist-rows");
     const panelistEmptyMessage =
         document.querySelector("#admin-panelist-empty");
+    const exportRegistrationsButton =
+        document.querySelector("#admin-export-registrations");
     const exportPanelistsButton =
         document.querySelector("#admin-export-panelists");
+    const exportRegistrationsPdfButton =
+        document.querySelector("#admin-export-registrations-pdf");
+    const exportPanelistsPdfButton =
+        document.querySelector("#admin-export-panelists-pdf");
 
     if (
         !adminAuth ||
@@ -63,7 +69,10 @@
         !panelistFeedback ||
         !panelistTableBody ||
         !panelistEmptyMessage ||
-        !exportPanelistsButton
+        !exportRegistrationsButton ||
+        !exportPanelistsButton ||
+        !exportRegistrationsPdfButton ||
+        !exportPanelistsPdfButton
     ) {
         return;
     }
@@ -712,6 +721,392 @@
         return `"${text.replace(/"/g, '""')}"`;
     }
 
+    function downloadAdminPdf(title, filename, records) {
+        const PdfClass = window.jspdf?.jsPDF;
+
+        if (
+            typeof PdfClass !== "function" ||
+            typeof PdfClass.API?.autoTable !== "function"
+        ) {
+            throw new Error("PDF tools did not load. Reload the page and try again.");
+        }
+
+        if (!Array.isArray(records) || records.length === 0) {
+            throw new Error("There are no records to export.");
+        }
+
+        const pdfText = (value) => {
+            const text = String(value ?? "")
+                .replace(/\r\n?/g, "\n")
+                .replace(/[\u2010-\u2015\u2212]/g, "-")
+                .trim();
+
+            return text || "Not provided";
+        };
+
+        const doc = new PdfClass({
+            orientation: "portrait",
+            unit: "pt",
+            format: "letter",
+            compress: true,
+        });
+        const generated = new Date().toLocaleString("en-US");
+
+        doc.setProperties({
+            title: "HACYPAA XI - " + title,
+            author: "HACYPAA XI",
+        });
+
+        records.forEach((record, index) => {
+            if (index > 0) {
+                doc.addPage();
+            }
+
+            doc.autoTable({
+                startY: 90,
+                margin: { top: 90, rigth: 36, bottom: 48, left: 36 },
+                theme: "grid",
+                showHead: "everyPage",
+                rowPageBreak: "avoid",
+                head: [[{
+                    content: pdfText(record.heading) + "\n" +
+                    pdfText(record.reference),
+                    colSpan: 2,
+                }]],
+                body: record.rows.map(([label, value]) => [
+                    pdfText(label),
+                    pdfText(value),
+                ]),
+                styles: {
+                    font: "helvetica",
+                    fontSize: 9,
+                    cellPadding: 6,
+                    overflow: "linebreak",
+                    textColor: [25, 23, 20],
+                    lineColor: [225, 218, 205],
+                    lineWidth: 0.4,
+                },
+                headStyles: {
+                    fillColor: [24, 23, 20],
+                    textColor: [245, 239, 227],
+                    fontSize: 11,
+                    cellPadding: 8,
+                },
+                columnStyles: {
+                    0: {
+                        cellWidth: 140,
+                        fontStyle: "bold",
+                        fillColor: [250, 247, 240],
+                    },
+                },
+                willDrawPage: () => {
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(10);
+                    doc.setTextColor(211, 19, 48);
+                    doc.text("HACYPAA XI | DIVINE PARADOX", 36, 30);
+
+                    doc.setFontSize(18);
+                    doc.setTextColor(25, 23, 20);
+                    doc.text(title, 36, 52);
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(8);
+                    doc.setTextColor(90);
+                    doc.text(
+                        "Generated" + generated + " | " + records.length + " records",
+                        36,
+                        69,
+                    );
+
+                    doc.setDrawColor(211, 19, 48);
+                    doc.setLineWidth(0.8);
+                    doc.line(36, 79, 576, 79);
+                },
+            });
+        });
+
+        const pageCount = doc.getNumberOfPages();
+
+        for (let page = 1; page <= pageCount; page += 1) {
+            doc.setPage(page);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(90);
+            doc.setDrawColor(225, 218, 205);
+            doc.setLineWidth(0.4);
+            doc.line(36, 758, 576, 758);
+            doc.text("HACYPAA XI | Admin export", 36, 771);
+            doc.text(
+                "Page " + page + " of " + pageCount,
+                576,
+                771,
+                { align: "right" },
+            );
+        }
+
+        doc.save(filename);
+    }
+
+    async function exportRegistrationsPdf() {
+        if (
+            !permissions.registrations ||
+            exportRegistrationsPdfButton.disabled
+        ) {
+            return;
+        }
+
+        exportRegistrationsPdfButton.disabled = true;
+        exportRegistrationsPdfButton.textContent = "Exporting...";
+        setFeedback("Preparing registration PDF...", "pending");
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            const response = await fetch(apiBase + "/admin/registrations", {
+                headers: {
+                    Authorization: "Bearer " + adminToken,
+                },
+                cache: "no-store",
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.status === 401 || response.status === 403) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                !Array.isArray(data.registrations)
+            ) {
+                throw new Error(data?.error || "Could not export registration PDF.");
+            }
+
+            if (!permissions.registrations || dashboard.hidden) {
+                return;
+            }
+
+            if (data.registrations.length === 0) {
+                setFeedback("There are no registration records to export.", "error");
+                return;
+            }
+
+            const yesNo = (value) => value ? "Yes" : "No";
+            const text = (value) => String(value ?? "").trim() || "Not Provided";
+
+            const records = data.registrations.map((r) => ({
+                heading: [r.firstName, r.lastName].filter(Boolean).join(" "),
+                reference: r.registrationCode,
+                rows: [
+                    ["Contact", [
+                        "Email: " + text(r.email),
+                        "Phone: " + text(r.phoneNumber),
+                        "Home group: " + text(r.homeGroup),
+                    ].join("\n")],
+                    ["Recovery", [
+                        "Sobriety date: " + text(r.sobrietyDate),
+                        "AA: " + yesNo(r.fellowshipAa),
+                        "Al-Anon / Alateen / AFG: " + yesNo(r.fellowshipAlanon),
+                    ].join("\n")],
+                    ["Location", r.location],
+                    ["Registration", [
+                        "Status: " + (statusLabels[r.status] ||
+                            test(r.status)),
+                        "Submitted: " + formatDate(r.createAt),
+                        "Updated: " + formatDate(r.updatedAt),
+                    ].join("\n")],
+                    ["Payment", [
+                        "Amount due: " + (
+                            r.amountDueCents == null
+                                ? "Not provided"
+                                : (Number(r.amountDueCents) / 100).toFixed(2)
+                                    +
+                                    " " + String(r.currency || "").toUpperCase()
+                        ),
+                        "Preferred method: " + (
+                            paymentLabels[r.preferredPaymentMethod] ||
+                            text(r.preferredPaymentMethod)
+                        ),
+                        "Reproted method: " + (
+                            paymentLabels[r.paymentMethod] ||
+                            r.paymentMethod || "Not reported"
+                        ),
+                        "Sender: " + text(r.paymentSenderHandle),
+                        "Reference: " + text(r.paymentReference),
+                        "Reported at: " + formatDate(r.paymentReportedAt),
+                        "Confirmed at: " + formatDate(r.confirmedAt),
+                    ].join("\n")],
+                    ["Dietary restrictions", r.dietaryRestrictions || "None reported"],
+                    ["Accommodations", [
+                        "Mobility assistance: " + yesNo(r.accommodationMobility),
+                        "ASL interpreter: " + yesNo(r.accommodationAsl),
+                        "Other: " + (r.accommodationDetails || "None reported"),
+                    ].join("\n")],
+                    ["Accessibility follow-up", [
+                        "Discussed: " + yesNo(r.accessibilityContactedAt),
+                        "Discussed at: " + formatDate(r.accessibilityContactedAt),
+                        "Discussed by: " + text(r.accessibilityContactedBy),
+                    ].join("\n")],
+                    ["Accessibility notes", r.accessibilityNotes || "No notes recorded"],
+                    ["Volunteer interest", yesNo(r.volunteerInterest)],
+                    ["Scholarship donation", yesNo(r.scholarshipDonation)],
+                ],
+            }));
+
+            const date = new Date().toISOString().slice(0, 10);
+
+            downloadAdminPdf(
+                "Attendee registrations",
+                "hacypaa-registrations-" + date + ".pdf",
+                records,
+            );
+
+            setFeedback(
+                records.length + " registration records exported to PDF.",
+                "success",
+            );
+        } catch (error) {
+            setFeedback(
+                error?.message || "Could not export registrations PDF.",
+                "error",
+            );
+        } finally {
+            exportRegistrationsPdfButton.textContent = "Export PDF";
+            exportRegistrationsPdfButton.disabled =
+                !permissions.registrations || dashboard.hidden;
+        }
+    }
+
+    async function exportRegistrations() {
+        if (
+            !permissions.registrations ||
+            exportRegistrationsButton.disabled
+        ) {
+            return;
+        }
+
+        exportRegistrationsButton.disabled = true;
+        exportRegistrationsButton.textContent = "Exporting...";
+        setFeedback("Preparing registrations CSV...", "pending");
+
+        try {
+            const adminToken = await adminAuth.getAccessToken();
+
+            if (!adminToken) {
+                showLogin("Your admin session has expired.");
+                return;
+            }
+
+            const response = await fetch(apiBase + "/admin/registrations", {
+                headers: {
+                    Authorization: "Bearer " + adminToken,
+                },
+                cache: "no-store",
+            });
+            const data = await response.json().catch(() => null);
+
+            if (response.status ===401 || response.status === 403) {
+                await adminAuth.signOut();
+                showLogin(data?.error || "Your admin session has expired.");
+                return;
+            }
+
+            if (
+                !response.ok ||
+                data?.ok !== true ||
+                !Array.isArray(data.registrations)
+            ) {
+                throw new Error(data?.error || "Could not export registrations.");
+            }
+
+            if (!permissions.registrations || dashboard.hidden) {
+                return;
+            }
+
+            if (data.registrations.length === 0) {
+                setFeedback("There are no registration records to export.", "error");
+                return;
+            }
+
+            const columns = [
+                ["Registration code", (r) => r.registrationCode],
+                ["First name", (r) => r.firstName],
+                ["Last name", (r) => r.lastName],
+                ["Email", (r) => r.email],
+                ["Phone", (r) => r.phoneNumber],
+                ["Sobriety date", (r) => r.sobrietyDate],
+                ["Location", (r) => r.location],
+                ["Home group", (r) => r.homeGroup],
+                ["AA", (r) => r.fellowshipAa ? "Yes" : "No"],
+                ["Al-Anon / Alateen / AFG", (r) => r.fellowshipAlanon ? "Yes" : "No"],
+                ["Dietary restrictions", (r) => r.dietaryRestrictions],
+                ["Mobility assistance", (r) => r.accommodationMobility ? "Yes" : "No"],
+                ["ASL interpreter", (r) => r.accommodationAsl ? "Yes" : "No"],
+                ["Other accommodation details", (r) => r.accommodationDetails],
+                ["Accessibility needs discussed", (r) => r.accessibilityContactedAt ? "Yes" : "No"],
+                ["Accessibility discussed at", (r) => formatDate(r.accessibilityContactedAt)],
+                ["Accessibility discussed by", (r) => r.accessibilityContactedBy],
+                ["Accessibility notes", (r) => r.accessibilityNotes],
+                ["Volunteer interest", (r) => r.volunteerInterest ? "Yes" : "No"],
+                ["Scholarship donation", (r) => r.scholarshipDonation ? "Yes" : "No"],
+                ["Preferred payment", (r) => paymentLabels[r.preferredPaymentMethod] || r.preferredPaymentMethod],
+                ["Status", (r) => statusLabels[r.status] || r.status],
+                ["Amount due", (r) => r.amountDueCents == null ? "" : (Number(r.amountDueCents) / 100).toFixed(2)],
+                ["Currency", (r) => String(r.currency || "").toUpperCase()],
+                ["Reported payment method", (r) => paymentLabels[r.paymentMethod] || r.paymentMethod],
+                ["Payment sender", (r) => r.paymentSenderHandle],
+                ["Payment reference", (r) => r.paymentReference],
+                ["Payment reported at", (r) => formatDate(r.paymentReportedAt)],
+                ["Confirm at", (r) => formatDate(r.confirmedAt)],
+                ["Submitted", (r) => formatDate(r.createdAt)],
+                ["Updated", (r) => formatDate(r.updatedAt)],
+            ];
+
+            const headings = columns.map(([heading]) => heading);
+            const rows = data.registrations.map((registration) =>
+                columns.map(([, getValue]) => getValue(registration)),
+        );
+        const csv = [headings, ...rows]
+            .map((row) => row.map(escapeCsvValue).join(","))
+            .join("\r\n");
+
+        const blob = new Blob(["\uFEFF", csv], {
+            type: "text/csv;charset=utf-8",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const date = new Date().toISOString().slice(0, 10);
+
+        link.href = url;
+        link.download = "hacypaa-registrations-" + date + ".csv";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        setFeedback(
+            data.registrations.length + " registratin records exported.",
+            "success",
+        );
+    } catch (error) {
+        setFeedback(
+            error?.message || "Could not export registrations.",
+            "error",
+        );
+    } finally {
+        exportRegistrationsButton.textContent = "Export CSV";
+        exportRegistrationsButton.disabled =
+            !permissions.registrations || dashboard.hidden;
+    }
+}
+
     function exportPanelists() {
         if (currentPanelists.length === 0) {
             setPanelistFeedback(
@@ -841,6 +1236,10 @@
                 !permissions.registrations;
             volunteerViewButton.hidden =
                 !permissions.volunteers;
+            exportRegistrationsButton.disabled =
+                !permissions.registrations;
+            exportRegistrationsPdfButton.disabled =
+                !permissions.registrations;
 
         if (!permissions.registrations && !permissions.volunteers) {
             throw new Error(
@@ -1259,6 +1658,16 @@
             loadRegistrations();
         }
     });
+
+    exportRegistrationsPdfButton.addEventListener(
+        "click",
+        exportRegistrationsPdf,
+    );
+
+    exportRegistrationsButton.addEventListener(
+        "click",
+        exportRegistrations,
+    );
 
     exportPanelistsButton.addEventListener(
         "click",

@@ -347,7 +347,27 @@
                   <h3>Attendees</h3>
                 </div>
 
-                <p id="admin-summary"></p>
+                <div class="admin-section-actions">
+                  <p id="admin-summary"></p>
+
+                  <button
+                    id="admin-export-registrations"
+                    class="button"
+                    type="button"
+                    disabled
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    id="admin-export-registrations-pdf"
+                    class="button"
+                    type="button"
+                    aria-label="Export registrations as PDF"
+                    disabled
+                  >
+                    Export PDF
+                  </button>
+                </div>
               </div>
 
               <p
@@ -405,6 +425,15 @@
                   >
                   Export CSV
                   </button>
+                  <button
+                    id="admin-export-panelists-pdf"
+                    class="button"
+                    type="button"
+                    aria-label="Export panelist as PDF"
+                    disabled
+                  >
+                    Export PDF
+                  </button>
                 </div>
               </div>
 
@@ -451,6 +480,14 @@
     <script src="/assets/js/supabase-config.js"></script>
     <script
       src="/assets/js/supabase-admin-auth.js"
+      defer
+    ></script>
+    <script
+      src ="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.9/dist/jspdf.plugin.autotable.min.js"
       defer
     ></script>
     <script

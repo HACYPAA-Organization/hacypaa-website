@@ -11,4 +11,4 @@ ALTER TABLE registrations
 ADD COLUMN accessibility_notes TEXT NOT NULL DEFAULT '';
 
 ALTER TABLE registrations
-ADD COLUMN accessibility_notification_sent_at INTEGER; 
+ADD COLUMN accessibility_notification_sent_at INTEGER;

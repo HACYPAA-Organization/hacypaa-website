@@ -1983,7 +1983,7 @@ export async function handleAdminAccessibilityUpdate(
 	} catch {
 		return json(
 			{
-				ok: false, error: "Request body must be valid JSON" 
+				ok: false, error: "Request body must be valid JSON"
 			},
 			400,
 			headers,
@@ -2058,7 +2058,7 @@ export async function handleAdminAccessibilityUpdate(
 					accessibility_notes AS accessibilityNotes,
 					updated_at AS updatedAt
 				FROM registrations
-				WHERE registration_code = ?	
+				WHERE registration_code = ?
 			`).bind(registrationCode),
 		]);
 
