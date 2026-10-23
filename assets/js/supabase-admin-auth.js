@@ -7,6 +7,7 @@
     const loginForm = document.querySelector("#admin-login-form");
     const emailInput = document.querySelector("#admin-email");
     const passwordInput = document.querySelector("#admin-password");
+    const rememberInput = document.querySelector("#admin-remember");
     const loginButton = document.querySelector("#admin-login-submit");
     const resetButton = document.querySelector("#admin-reset-request");
     const passwordForm = document.querySelector("#admin-password-form");
@@ -43,6 +44,7 @@
         loginForm,
         emailInput,
         passwordInput,
+        rememberInput,
         loginButton,
         resetButton,
         passwordForm,
@@ -72,11 +74,125 @@
         return;
     }
 
+    function createAdminSessionStorage(storageKey) {
+        const durationMs = 30 * 24 * 60 * 60 * 1000;
+        let storage = window.sessionStorage;
+        let expiresAt = null;
+
+        function readRecord(target) {
+            const raw = target.getItem(storageKey);
+
+            if (!raw) return null;
+
+            let record;
+
+            try {
+                record = JSON.parse(raw);
+            } catch {
+                target.removeItem(storageKey);
+                return null;
+            }
+
+            const validExpiry = target === window.localStorage
+                ? Number.isSafeInteger(record?.expiresAt) &&
+                  record.expiresAt > Date.now()
+                : record?.expiresAt === null;
+
+            if (
+                !validExpiry ||
+                !record?.values ||
+                typeof record.values !== "object" ||
+                Array.isArray(record.values) ||
+                Object.values(record.values).some(
+                    (value) => typeof value !== "string",
+                )
+            ) {
+                target.removeItem(storageKey);
+                return null;
+            }
+
+            return record;
+        }
+
+        const tabRecord = readRecord(window.sessionStorage);
+        const rememberRecord = readRecord(window.localStorage);
+
+        if (!tabRecord && rememberRecord) {
+            storage = window.localStorage;
+            expiresAt = rememberRecord.expiresAt;
+        }
+
+        function hasExpired() {
+            const record = readRecord(storage);
+
+            if (record) expiresAt = record.expiresAt;
+
+            if (expiresAt !== null && Date.now() >= expiresAt) {
+                storage.removeItem(storageKey);
+                return true;
+            }
+
+            return false;
+        }
+
+        return {
+            getItem(key) {
+                if (hasExpired()) return null;
+                return readRecord(storage)?.values[key] ?? null;
+            },
+        setItem(key, value) {
+            if (hasExpired()) return;
+
+            const record = readRecord(storage) || {
+                expiresAt,
+                values: {},
+            };
+
+                record.values[key] = value;
+                storage.setItem(storageKey, JSON.stringify(record));
+            },
+            removeItem(key) {
+                const record = readRecord(storage);
+
+                if (!record) return;
+
+                delete record.values[key];
+
+                if (Object.keys(record.values).length) {
+                    storage.setItem(storageKey, JSON.stringify(record));
+                } else {
+                    storage.removeItem(storageKey);
+                }
+            },
+            beginSession(remember) {
+                window.localStorage.removeItem(storageKey);
+                window.sessionStorage.removeItem(storageKey);
+                storage = remember
+                    ? window.localStorage
+                    : window.sessionStorage;
+                expiresAt = remember ? Date.now() + durationMs : null;
+            },
+            clear() {
+               window.localStorage.removeItem(storageKey);
+                window.sessionStorage.removeItem(storageKey);
+                storage = window.sessionStorage;
+                expiresAt = null;
+                },
+            hasExpired,
+        };
+    }
+
+    const projectRef = new URL(config.url).hostname.split(".")[0];
+    const adminStorageKey = `sb-${projectRef}-auth-token`;
+    const adminSessionStorage = createAdminSessionStorage(adminStorageKey);
+
     const client = sdk.createClient(
         config.url,
         config.publishableKey,
         {
             auth: {
+                storageKey: adminStorageKey,
+                storage: adminSessionStorage,
                 persistSession: true,
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
@@ -142,6 +258,7 @@
     }
 
     function notifyAuthenticated() {
+        if (checkSessionExpiration()) return;
         authenticated = true;
         hideViews();
         setFeedback("");
@@ -182,8 +299,32 @@
         );
     }
 
+    const expiredSessionMessage =
+        "Your remembered login has expired. Please sign in again.";
+
+    function checkSessionExpiration() {
+        if (!adminSessionStorage.hasExpired()) return false;
+
+        enrollmentFactorId = "";
+        passwordFlow = false;
+
+        if (loginForm.hidden) {
+            showLogin(expiredSessionMessage);
+        }
+
+        return true;
+    }
+
     async function getAccessToken() {
+        if (checkSessionExpiration()) {
+            throw new Error(expiredSessionMessage);
+        }
+
         const { data, error } = await client.auth.getSession();
+
+        if (checkSessionExpiration()) {
+            throw new Error(expiredSessionMessage);
+        }
 
         if (error) {
             throw error;
@@ -344,6 +485,12 @@
         setFeedback("Checking your credentials...", "pending");
 
         try {
+            await client.auth.getSession();
+
+            adminSessionStorage.beginSession(
+                rememberInput.checked,
+            );
+
             const result = await client.auth.signInWithPassword({
                 email: emailInput.value.trim(),
                 password: passwordInput.value,
@@ -549,10 +696,34 @@
             authenticated = false;
             enrollmentFactorId = "";
             passwordFlow = false;
-            await client.auth.signOut();
-            showLogin("Dashboard locked.");
+
+            try{
+                await client.auth.signOut({
+                    scope: "local",
+                });
+            } finally {
+                adminSessionStorage.clear();
+                rememberInput.checked = false;
+                showLogin("Dashboard locked.");
+            }
         },
         showLogin,
+    });
+
+    window.setInterval(
+        checkSessionExpiration,
+        60 * 1000,
+    );
+
+    window.addEventListener(
+        "focus",
+        checkSessionExpiration,
+    );
+
+    document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") {
+            checkSessionExpiration();
+        }
     });
 
     routeSession();

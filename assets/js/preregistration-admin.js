@@ -1351,6 +1351,7 @@
                     },
                 },
             );
+
             const data = await response.json();
 
             if (response.status === 401 || response.status === 403) {
@@ -2119,7 +2120,15 @@
         },
     );
 
+    console.log("Admin: registering dashboard listener");
+
     adminAuth.onAuthenticated(function () {
-        void loadAdminAccess();
+        void loadAdminAccess().catch(function (error) {
+                console.error("Admin dashboard startup failed", error);
+
+                showLogin(
+                    error.message || "Could not open the dashboard.",
+                );
+            });
     });
 })();
