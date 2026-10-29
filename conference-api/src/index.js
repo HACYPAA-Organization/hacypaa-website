@@ -137,8 +137,21 @@ function stripeObjectID(value) {
 function buildOrderRecord(event, session) {
 	const customer = session.customer_details;
 	const shipping =
-		session.collected_information?.shipping_details;
+		session.payment_intent?.shipping ||
+		session.collected_information?.shipping_details ||
+		session.customer?.shipping;
+
 	const address = shipping?.address;
+
+	const shippingRate = session.shipping_cost?.shipping_rate;
+
+	const printifyShippingMethod = shippingRate == null
+		? 1
+		: Number(shippingRate.metadata?.printify_shipping_method);
+
+	if (![1, 4].includes(printifyShippingMethod)) {
+		throw new Error("Paid order has an invalid shipping method");
+	}
 
 	const currency = cleanText(session.currency).toLowerCase();
 	const country = cleanText(address?.country).toUpperCase();
@@ -230,7 +243,9 @@ function buildOrderRecord(event, session) {
 		customerEmail: cleanText(customer.email),
 		customerName,
 		customerPhone:
-			cleanText(customer.phone) || null,
+			cleanText(shipping?.phone) ||
+			cleanText(customer?.phone) ||
+			null,
 
 		shippingName,
 		shippingLine1: cleanText(address.line1),
@@ -241,6 +256,7 @@ function buildOrderRecord(event, session) {
 		shippingPostalCode:
 			cleanText(address.postal_code),
 		shippingCountry: country,
+		printifyShippingMethod,
 
 		paidAt: event.created,
 	}
@@ -325,14 +341,15 @@ async function storePaidOrder(db, order, items) {
 					shipping_state,
 					shipping_postal_code,
 					shipping_country,
-					paid_at
+					paid_at,
+					printify_shipping_method
 				)
 				VALUES (
 					?, ?, ?, ?, ?, ?, ?,
 					?, ?, ?, ?, ?,
 					?, ?, ?,
 					?, ?, ?, ?, ?, ?, ?,
-					?
+					?, ?
 				)
 				`,
 			)
@@ -360,6 +377,7 @@ async function storePaidOrder(db, order, items) {
 				order.shippingPostalCode,
 				order.shippingCountry,
 				order.paidAt,
+				order.printifyShippingMethod,
 			),
 	];
 
@@ -433,6 +451,8 @@ async function loadFulfillmentOrder(db, orderID) {
 			`
 				SELECT
 					id,
+					livemode,
+					printify_shipping_method,
 					stripe_session_id,
 					customer_email,
 					customer_phone,
@@ -493,7 +513,7 @@ export function buildPrintifyOrderPayload(fulfillmentOrder) {
 				quantity: item.quantity,
 				external_id: item.stripe_line_item_id,
 		})),
-		shipping_method: 1,
+		shipping_method: order.printify_shipping_method ?? 1,
 		send_shipping_notification: true,
 		address_to: {
 			first_name: firstName,
@@ -508,6 +528,183 @@ export function buildPrintifyOrderPayload(fulfillmentOrder) {
 			zip: order.shipping_postal_code,
 		},
 	};
+}
+
+async function getMerchShippingQuote(env, body) {
+	const invalid = (message) => {
+		throw Object.assign(new Error(message), { status: 400 });
+	};
+
+	if (
+		!Array.isArray(body?.items) ||
+		body.items.length < 1 ||
+		body.items.length > 10
+	) {
+		invalid("Cart must contain between 1 and 10 items.");
+	}
+
+	const limits = {
+		fullName: 160,
+		email: 254,
+		phone: 40,
+		line1: 200,
+		line2: 200,
+		city: 100,
+		state: 2,
+		postalCode: 10,
+		country: 2,
+	};
+
+	const address = Object.fromEntries(
+		Object.keys(limits).map((key) => [
+			key,
+			cleanText(body?.address?.[key]),
+		]),
+	);
+
+	address.state = address.state.toUpperCase();
+	address.country = address.country.toUpperCase();
+
+	if (
+		Object.entries(limits).some(([key, limit]) =>
+			(key !== "line2" && !address[key]) ||
+			address[key].length > limit
+		) ||
+		address.country !== "US" ||
+		!/^[A-Z]{2}$/.test(address.state) ||
+        !/^\d{5}(-\d{4})?$/.test(address.postalCode) ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email)
+	) {
+		invalid("Enter a complete US delivery address and contact information.");
+	}
+
+	const itemMap = new Map();
+
+	for (const item of body.items) {
+		const productId = cleanText(item?.productId).toLowerCase();
+		const variantId = Number(item?.variantId);
+		const quantity = Number(item?.quantity);
+
+		if (
+			!/^[a-f0-9]{24}$/.test(productId) ||
+            !Number.isSafeInteger(variantId) ||
+            variantId <= 0 ||
+            !Number.isSafeInteger(quantity) ||
+            quantity < 1 ||
+            quantity > 10
+		) {
+			invalid("Cart contains an invalid item.");
+		}
+
+		const key = productId + ":" + variantId;
+		const combined = (itemMap.get(key)?. quantity || 0) + quantity;
+
+		if (combined > 10) {
+			invalid("Maximum quantity is 10 per variant.");
+		}
+
+		itemMap.set(key, {
+			product_id: productId,
+			variant_id: variantId,
+			quantity: combined,
+		});
+	}
+
+	const nameParts = address.fullName.split(/\s+/);
+	const firstName = nameParts.shift();
+
+	const addressTo = {
+		first_name: firstName,
+		last_name: nameParts.join(" ") || first,
+		email: address.email,
+		phone: address.phone,
+		country: address.country,
+		region: address.state,
+		address1: address.line1,
+		address2: address.line2,
+		city: address.city,
+		zip: address.postalCode,
+	};
+
+	const apiToken = env.PRINTIFY_API_TOKEN?.trim();
+	const shopID = env.PRINTIFY_SHOP_ID?.trim();
+
+	if (!apiToken || !shopID) {
+		throw Object.assign(
+			new Error("Shipping is temporarily unavailable."),
+			{ status: 503 },
+		);
+	}
+
+	const lineItems = [...itemMap.values()];
+	const options = await fetchPrintifyShippingOptions(
+		apiToken,
+		shopID,
+		lineItems,
+		addressTo,
+	);
+
+	return { options, address, addressTo, lineItems };
+}
+
+async function fetchPrintifyShippingOptions(
+	apiToken,
+	shopID,
+	lineItems,
+	addressTo,
+) {
+	const response = await fetch(
+		`https://api.printify.com/v1/shops/${encodeURIComponent(shopID)}/orders/shipping.json`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+				Accept: "application/json",
+				"User-Agent": "HACYPAA Checkout API",
+			},
+			body: JSON.stringify({
+				line_items: lineItems,
+				address_to: addressTo,
+			}),
+		},
+	);
+
+	const quote = await response.json().catch(() => null);
+
+	if (!response.ok || !quote) {
+		console.error("Printify shipping quote rejected", {
+			status: response.status,
+			code: quote?.code,
+			message: quote?.message,
+			reason: quote?.errors?.reason,
+		});
+
+		throw new Error("Could not calculate shipping for this address");
+	}
+
+	const options = [
+		{
+			label: "Economy",
+			method: 4,
+			amountCents: quote.economy,
+		},
+		{
+			label: "Standard",
+			method: 1,
+			amountCents: quote.standard,
+		},
+	].filter(
+		(option) =>
+			Number.isSafeInteger(option.amountCents) &&
+			option.amountCents >= 0,
+	);
+
+	if (!options.length) {
+		throw new Error("Shipping is unavailable for this cart and address");
+	}
+
+	return options;
 }
 
 async function submitPrintifyOrder(
@@ -2929,7 +3126,13 @@ export default {
 
 			try {
 				[session, lineItems] = await Promise.all([
-					stripe.checkout.sessions.retrieve(eventSession.id),
+					stripe.checkout.sessions.retrieve(eventSession.id, {
+						expand: [
+							"shipping_cost.shipping_rate",
+							"payment_intent",
+							"customer",
+						],
+					}),
 					stripe.checkout.sessions.listLineItems(
 						eventSession.id,
 						{
@@ -3788,6 +3991,57 @@ export default {
 			}
 		}
 
+		if (
+			request.method === "POST" &&
+			url.pathname === "/checkout/shipping-quote"
+		) {
+			const headers = {
+				...corsHeaders,
+				"Cache-Control": "no-store",
+			};
+
+			let body;
+
+			try {
+				body = await request.json();
+			} catch {
+				return json(
+					{ ok: false, error: "Request body must be valid JSON." },
+					400,
+					headers,
+				);
+			}
+
+			try {
+				const quote = await getMerchShippingQuote(env, body);
+
+				return json(
+					{ ok: true, options: quote.options },
+					200,
+					headers,
+				);
+			} catch (error) {
+				const status = [400, 503].includes(error?.status)
+					? error.status
+					:502;
+
+				console.error("Shipping quote failed", {
+					message: error?.message,
+				});
+
+				return json(
+					{
+						ok: false,
+						error: status === 502
+							? "Could not calculate shipping. Check the address and try again."
+							: error.message,
+					},
+					status,
+					headers,
+				);
+			}
+		}
+
 		if(request.method === "POST" && url.pathname === "/checkout/session") {
 			let body;
 
@@ -3914,8 +4168,10 @@ export default {
 				lineItems.push({
 					price_data: {
 						currency: "usd",
+						tax_behavior: "exclusive",
 						product_data: {
 							name: product.title || "Selected variant",
+							tax_code: "txcd_30011000",
 							metadata: {
 								printify_product_id: item.productId,
 								printify_variant_id: item.variantId,
@@ -3927,6 +4183,59 @@ export default {
 				});
 			}
 
+			const requestedShippingMethod = body?.shipping?.method;
+
+			if (![1, 4].includes(requestedShippingMethod)) {
+				return json(
+					{ ok: false, error: "Choose a valid shipping method." },
+					400,
+					corsHeaders,
+				);
+			}
+
+			let shippingQuote;
+
+			try {
+				shippingQuote = await getMerchShippingQuote(env, {
+					items: body.items,
+					address: body.shipping.address,
+				});
+			} catch (error) {
+				const status = [400, 503].includes(error?.status)
+					? error.status
+					:502;
+
+				console.error("Checkout shipping quote failed", {
+					message: error?.message,
+				});
+
+				return json(
+					{
+						ok: false,
+						error: status === 502
+							? "Could not recheck shipping. Please try again."
+							: error.message,
+					},
+					status,
+					corsHeaders,
+				);
+			}
+
+			const selectedShipping = shippingQuote.options.find(
+				(option) => option.method === requestedShippingMethod,
+			);
+
+			if (!selectedShipping) {
+				return json(
+					{
+						ok: false,
+						error: "That shipping method is unavailable. Recalculate shipping.",
+					},
+					400,
+					corsHeaders,
+				);
+			}
+
 			const checkoutOrigin =
 			origin && ALLOWED_ORIGINS.has(origin)
 			? origin
@@ -3935,20 +4244,71 @@ export default {
 			try {
 				const stripe = new Stripe(env.STRIPE_SECRET_KEY.trim());
 
+				const checkoutCustomer = await stripe.customers.create({
+					email: shippingQuote.address.email,
+					name: shippingQuote.address.fullName,
+					phone: shippingQuote.address.phone,
+					shipping: {
+						name: shippingQuote.address.fullName,
+						phone: shippingQuote.address.phone,
+						address: {
+							line1: shippingQuote.address.line1,
+							line2: shippingQuote.address.line2,
+							city: shippingQuote.address.city,
+							state: shippingQuote.address.state,
+							postal_code: shippingQuote.address.postalCode,
+							country: shippingQuote.address.country,
+						},
+					},
+				});
+
 				const session = await stripe.checkout.sessions.create({
 					ui_mode: "embedded_page",
 					mode: "payment",
-					line_items: lineItems,
-					customer_creation: "always",
-					shipping_address_collection: {
-						allowed_countries: ["US"],
-					},
-					phone_number_collection: {
+					automatic_tax: {
 						enabled: true,
 					},
+					branding_settings: {
+						background_color: "#f2eddf",
+						button_color: "#d31330",
+						border_style: "rounded",
+						font_family: "default",
+					},
+
+					line_items: lineItems,
+
+					integration_identifier:
+						"hacypaa_merch_shipping_" +
+						Array.from(
+							crypto.getRandomValues(new Uint8Array(8)),
+							(value) => String.fromCharCode(97 + (value % 26)),
+						).join(""),
+
+					customer: checkoutCustomer.id,
+
+					shipping_options: [
+						{
+							shipping_rate_data: {
+								display_name: selectedShipping.label,
+								type: "fixed_amount",
+								tax_behavior: "exclusive",
+								fixed_amount: {
+									amount: selectedShipping.amountCents,
+									currency: "usd",
+								},
+								metadata: {
+									printify_shipping_method: String(
+										selectedShipping.method,
+									),
+								},
+							},
+						},
+					],
+
 					return_url:
-					checkoutOrigin +
-					"/merch/?checkout=complete&session_id={CHECKOUT_SESSION_ID}",
+						checkoutOrigin +
+						"/merch/?checkout=complete&session_id={CHECKOUT_SESSION_ID}",
+
 					metadata: {
 						source: "hacypaa_merch",
 						printify_shop_id: shopID,
@@ -4012,6 +4372,16 @@ export default {
 			}
 
 			const { order } = fulfillmentOrder;
+
+			if (order.livemode !== 1) {
+				console.log("Skipped Printify submission for a non-live order", {
+					orderID,
+					livemode: order.livemode,
+				});
+
+				message.ack();
+				continue;
+			}
 
 			if (
 				order.printify_order_id ||

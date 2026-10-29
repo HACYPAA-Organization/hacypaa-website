@@ -2,7 +2,12 @@
     "use strict";
 
     const storageKey = "hacypaa-merch-cart-v2";
-    const checkoutApi = "https://checkout-api.tgp-services.workers.dev";
+    const checkoutApi = [
+        "localhost",
+        "127.0.0.1",
+    ].includes(window.location.hostname)
+        ? "http://127.0.0.1:8787"
+        : "https://checkout-api.tgp-services.workers.dev";
     const stripePublishableKey =
     "pk_test_51U82LpM0AC70O1UBmLUALv7KZvdV8GvbUvTNJn9tJ9RMQmuOUX0VyOj69a5yGuojELAfpTlHVssYZJO9MGJQcsyw00jOVw0ENc";
 
@@ -14,7 +19,18 @@
         "#checkout-dialog .cart-heading h2",
     );
 
+    const shippingForm = document.querySelector(
+        "#checkout-shipping-form",
+    );
+
+    const shippingOptionsContainer = document.querySelector(
+        "#checkout-shipping-options",
+    );
+
     let checkoutInstance = null;
+    let checkoutStarting = false;
+    let shippingSelection = null;
+    let shippingQuoteVersion = 0;
 
     function formatMoney(cents, currency = "usd") {
         return new Intl.NumberFormat("en-US", {
@@ -37,7 +53,195 @@
         window.dispatchEvent(new Event("hacypaa:cart-cleared"));
     }
 
+    function renderShippingOptions(options, address) {
+        shippingSelection = null;
+        shippingOptionsContainer.replaceChildren();
+
+        const fieldset = document.createElement("fieldset");
+        const legend = document.createElement("legend");
+        legend.textContent = "Choose shipping";
+        fieldset.append(legend);
+
+        const continueButton = document.createElement("button");
+        continueButton.type = "button";
+        continueButton.className = "merch-button merch-button-red";
+        continueButton.textContent = "Continue to payment";
+        continueButton.disabled = true;
+
+        options.forEach(function (option) {
+            const label = document.createElement("label");
+            const radio = document.createElement("input");
+
+            radio.type = "radio";
+            radio.name = "checkoutShippingMethod";
+            radio.value = String(option.method);
+            radio.required = true;
+
+            radio.addEventListener("change", function () {
+                if (!radio.checked) {
+                    return;
+                }
+
+                shippingSelection = {
+                    address: { ...address },
+                    method: option.method,
+                };
+
+                continueButton.disabled = false;
+            });
+
+            label.append(
+                radio,
+                document.createTextNode(
+                    option.label +
+                    " — " +
+                    formatMoney(option.amountCents),
+                ),
+            );
+
+            fieldset.append(label);
+        });
+
+        continueButton.addEventListener("click", async function () {
+            if (checkoutStarting) {
+                return;
+            }
+
+            continueButton.disabled = true;
+
+            try {
+                await startStripeCheckout();
+            } finally {
+                continueButton.disabled = !shippingSelection;
+            }
+        });
+
+        shippingOptionsContainer.append(fieldset, continueButton);
+        shippingOptionsContainer.hidden = false;
+
+        requestAnimationFrame(function () {
+            if (!checkoutDialog.open) return;
+
+            const headingHeight =
+                checkoutDialog.querySelector(".cart-heading")?.offsetHeight || 0;
+
+            const optionsTop =
+                checkoutDialog.scrollTop +
+                shippingOptionsContainer.getBoundingClientRect().top -
+                checkoutDialog.getBoundingClientRect().top -
+                checkoutDialog.clientTop -
+                headingHeight -
+                16;
+
+            checkoutDialog.scrollTo({
+                top: optionsTop,
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? "auto"
+                    : "smooth",
+            });
+        });
+    }
+
+    shippingForm.addEventListener("input", function () {
+        shippingQuoteVersion += 1;
+        shippingSelection = null;
+        shippingOptionsContainer.replaceChildren();
+        shippingOptionsContainer.hidden = true;
+    });
+
+    shippingForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const button = shippingForm.querySelector('[type="submit"]');
+
+        if (button.disabled || !shippingForm.reportValidity()) {
+            return;
+        }
+
+        const version = ++shippingQuoteVersion;
+
+        const address = Object.fromEntries(
+            [...new FormData(shippingForm)].map(function ([key, value]) {
+                return [key, String(value).trim()];
+            }),
+        );
+
+        address.state = address.state.toUpperCase();
+        address.country = "US";
+
+        shippingSelection = null;
+        shippingOptionsContainer.replaceChildren();
+        shippingOptionsContainer.hidden = true;
+
+        button.disabled = true;
+        button.textContent = "Calculating...";
+        checkoutStatus.hidden = false;
+        checkoutStatus.textContent = "Calculating shipping options...";
+
+        try {
+            const items = readCart().map(function (item) {
+                return {
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    quantity: item.quantity,
+                };
+            });
+
+            if (!items.length) {
+                throw new Error("Your cart is empty.");
+            }
+
+            const response = await fetch(
+                checkoutApi + "/checkout/shipping-quote",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ items, address }),
+                },
+            );
+
+            const payload = await response.json().catch(function () {
+                return {};
+            });
+
+            if (version !== shippingQuoteVersion) {
+                return;
+            }
+
+            if (
+                !response.ok ||
+                !Array.isArray(payload.options) ||
+                !payload.options.length
+            ) {
+                throw new Error(
+                    payload.error || "Could not calculate shippings.",
+                );
+            }
+
+            renderShippingOptions(payload.options, address);
+            checkoutStatus.textContent = "Choose a shipping method.";
+        } catch (error) {
+            if (version === shippingQuoteVersion) {
+                checkoutStatus.textContent =
+                    error instanceof Error
+                        ? error.message
+                        : "Could not calculate shipping.";
+            }
+        } finally {
+            button.disabled = false;
+            button.textContent = "Calculate shipping";
+        }
+    });
+
     async function fetchClientSecret() {
+        if (
+            !shippingSelection ||
+            ![1, 4].includes(shippingSelection.method)
+        ) {
+            throw new Error("Choose a shipping method before continuing.");
+        }
         const cart = readCart();
 
         const items = cart.map(function (item) {
@@ -53,7 +257,10 @@
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ items: items }),
+            body: JSON.stringify({
+                items,
+                shipping: shippingSelection,
+            }),
         });
 
         const payload = await response.json().catch(function () {
@@ -212,48 +419,133 @@
         }
     }
 
-    async function openCheckout() {
-
+    function openCheckout() {
         if (!readCart().length || checkoutInstance) {
             return;
         }
 
-        checkoutButton.disabled = true;
+        shippingQuoteVersion += 1;
+        shippingSelection = null;
+
+        shippingOptionsContainer.replaceChildren();
+        shippingOptionsContainer.hidden = true;
         checkoutContainer.replaceChildren();
 
+        shippingForm.hidden = false;
+        checkoutStatus.hidden = true;
+        checkoutStatus.textContent = "";
+        checkoutButton.disabled = true;
+
         if (checkoutHeading) {
-            checkoutHeading.textContent = "Checkout";
+            checkoutHeading.textContent = "Delivery and shipping";
         }
 
-        checkoutStatus.hidden = false;
-        checkoutStatus.textContent = "Loading secure checkout...";
+        const cartDialog = document.querySelector("#cart-dialog");
+
+        if (cartDialog?.open) {
+            cartDialog.close();
+        }
 
         if (!checkoutDialog.open) {
             checkoutDialog.showModal();
         }
 
+        shippingForm.querySelector("input")?.focus();
+    }
+
+    async function startStripeCheckout() {
+        if (
+            checkoutStarting ||
+            checkoutInstance ||
+            !checkoutDialog.open
+        ) {
+            return;
+        }
+
+        if (
+            !readCart().length ||
+            !shippingSelection ||
+            ![1, 4].includes(shippingSelection.method)
+        ) {
+            checkoutStatus.hidden = false;
+            checkoutStatus.textContent =
+                "Review your cart and choose a shipping method.";
+            return;
+        }
+
+        checkoutStarting = true;
+        const version = shippingQuoteVersion;
+
+        shippingForm.hidden = true;
+        shippingOptionsContainer.hidden = true;
+        checkoutContainer.replaceChildren();
+
+        checkoutStatus.hidden = false;
+        checkoutStatus.textContent = "Loading secure checkout...";
+
+        if (checkoutHeading) {
+            checkoutHeading.textContent = "Checkout";
+        }
+
         try {
             const stripe = Stripe(stripePublishableKey);
 
-            checkoutInstance =
-            await stripe.createEmbeddedCheckoutPage({
-                fetchClientSecret: fetchClientSecret,
+            const instance = await stripe.createEmbeddedCheckoutPage({
+                fetchClientSecret,
             });
 
+            if (
+                version !== shippingQuoteVersion ||
+                !checkoutDialog.open
+            ) {
+                instance.destroy();
+                return;
+            }
+
+            checkoutInstance = instance;
             checkoutInstance.mount("#checkout");
             checkoutStatus.hidden = true;
         } catch (error) {
+            if (checkoutInstance) {
+                checkoutInstance.destroy();
+                checkoutInstance = null;
+            }
+
+            checkoutContainer.replaceChildren();
+
+            if (
+                version !== shippingQuoteVersion ||
+                !checkoutDialog.open
+            ) {
+                return;
+            }
+
+            shippingForm.hidden = false;
+            shippingOptionsContainer.hidden = !shippingSelection;
+
+            if (checkoutHeading) {
+                checkoutHeading.textContent = "Delivery and shipping";
+            }
+
             checkoutStatus.hidden = false;
             checkoutStatus.textContent =
                 error instanceof Error
                     ? error.message
-                    : "Checkout failed to load";
-
-            checkoutButton.disabled = false;
+                    : "could not open secure checkout.";
+        } finally {
+            checkoutStarting = false;
         }
     }
 
     function closeCheckout() {
+
+        shippingQuoteVersion += 1;
+        shippingSelection = null;
+        shippingForm.hidden = true;
+        shippingOptionsContainer.replaceChildren();
+        shippingOptionsContainer.hidden = true;
+
+
         if (checkoutInstance) {
             checkoutInstance.destroy();
             checkoutInstance = null;
@@ -277,4 +569,10 @@
         });
 
         void verifyReturnedCheckout();
+
+    checkoutDialog.addEventListener("cancel", function (event) {
+        event.preventDefault();
+        closeCheckout();
+    });
+
 })();

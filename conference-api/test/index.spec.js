@@ -221,6 +221,7 @@ describe("HACYPAA checkout API", () => {
 		const payload = buildPrintifyOrderPayload({
 			order: {
 				id: 42,
+				livemode: 1,
 				stripe_session_id: "cs_test_order_42",
 				customer_email: "customer@example.com",
 				customer_phone: "8165550123",
@@ -323,9 +324,80 @@ describe("HACYPAA checkout API", () => {
 		expect(message.ack).not.toHaveBeenCalled();
 	});
 
+	it.each([0, undefined])(
+		"blocks Printify fulfillment when livemode is %s",
+		async (livemode) => {
+			const prepare = vi.fn((sql) => {
+				if (sql.includes("FROM orders")) {
+					return {
+						bind: () => ({
+							first: vi.fn().mockResolvedValue({
+								id: 45,
+								livemode,
+								fulfillment_status: "pending",
+								printify_order_id: null,
+							}),
+						}),
+					};
+				}
+
+				if (sql.includes("FROM order_items")) {
+					return {
+						bind: () => ({
+							all: vi.fn().mockResolvedValue({
+								results: [{
+									stripe_line_item_id: "li_test_45",
+									printify_product_id:
+										"5bfd0b66a342bcc9b5563216",
+									printify_variant_id: 17887,
+									quantity: 1,
+								}],
+							}),
+						}),
+					};
+				}
+
+				throw new Error(
+					"Unexpected database write for a non-live order",
+				);
+			});
+
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+
+			const message = {
+				id: "msg_non_live",
+				timestamp: new Date(),
+				body: { orderID: 45 },
+				attempts: 1,
+				ack: vi.fn(),
+				retry: vi.fn(),
+			};
+
+			await worker.queue(
+				{
+					queue: "hacypaa-fulfillment",
+					messages: [message],
+					ackAll: vi.fn(),
+					retryAll: vi.fn(),
+				},
+				{
+					ORDERS_DB: { prepare },
+					PRINTIFY_API_TOKEN: "test-token",
+					PRINTIFY_SHOP_ID: "12345",
+				},
+			);
+
+			expect(message.ack).toHaveBeenCalledOnce();
+			expect(message.retry).not.toHaveBeenCalled();
+			expect(fetchMock).not.toHaveBeenCalled();
+		},
+	);
+
 	it("submits a claimed paid order to Printify", async () => {
 		const order = {
 			id: 42,
+			livemode: 1,
 			stripe_session_id: "cs_test_order_42",
 			customer_email: "customer@example.com",
 			customer_phone: "8165550123",
@@ -358,7 +430,7 @@ describe("HACYPAA checkout API", () => {
 		});
 
 		const prepare = vi.fn((sql) => {
-			if (sql.includes("FROM order_items")) {
+			if (sql.includes ("FROM order_items")) {
 				return {
 					bind: () => ({
 						all: vi.fn().mockResolvedValue({
@@ -491,6 +563,7 @@ describe("HACYPAA checkout API", () => {
 					bind: () => ({
 						first: vi.fn().mockResolvedValue({
 							id: 43,
+							livemode: 1,
 							fulfillment_status: "submitted",
 							printify_order_id:
 								"printify_order_existing",
@@ -535,6 +608,7 @@ describe("HACYPAA checkout API", () => {
 	it("records Printify failures and retries the fulfillment job", async() => {
 		const order = {
 			id: 44,
+			livemode: 1,
 			stripe_session_id: "cs_test_failure_44",
 			customer_email: "customer@example.com",
 			customer_phone: "8165550123",
