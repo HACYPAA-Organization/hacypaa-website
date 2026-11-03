@@ -1054,6 +1054,11 @@ describe("HACYPAA checkout API", () => {
                 },
             ),
             {
+
+				PUBLIC_WRITE_LIMITER: {
+					limit: vi.fn().mockResolvedValue({ success: true }),
+				},
+
                 ORDERS_DB: {
                     prepare,
                     batch,
@@ -1246,7 +1251,7 @@ describe("HACYPAA checkout API", () => {
                     "SET payment_access_token_hash = ?",
                 ) &&
                     normalizedSql.includes(
-                        "status = 'awaiting_payment'",
+                        "status IN ('awaiting_payment', 'payment_not_found')",
                     );
             });
 
@@ -1393,10 +1398,9 @@ describe("HACYPAA checkout API", () => {
                                 "awaiting_payment",
                             amountDueCents: 2500,
                             currency: "usd",
-                            currentTokenHash:
-                                oldTokenHash,
-                            registrationEmailSentAt:
-                                0,
+                            currentTokenHash: oldTokenHash,
+							currentTokenExpiresAt: 1700000000,
+                            registrationEmailSentAt: 0,
                         }),
                     };
                 }
@@ -1477,7 +1481,7 @@ describe("HACYPAA checkout API", () => {
                         sql.replace(/\s+/g, " ");
 
                     return normalizedSql.includes(
-                        "status = 'awaiting_payment'",
+                        "status IN ('awaiting_payment', 'payment_not_found')",
                     ) &&
                         normalizedSql.includes(
                             "SET payment_access_token_hash = ?",
@@ -1500,7 +1504,7 @@ describe("HACYPAA checkout API", () => {
                                 "SET payment_access_token_hash = ?",
                             ) &&
                             !normalizedSql.includes(
-                                "status = 'awaiting_payment'",
+                                "status IN ('awaiting_payment', 'payment_not_found')",
                             ) &&
                             values[0] ===
                                 oldTokenHash
@@ -1509,12 +1513,13 @@ describe("HACYPAA checkout API", () => {
                 );
 
             expect(rollbackStatement).toBeDefined();
-            expect(rollbackStatement.values[2]).toBe(
-                42,
-            );
-            expect(rollbackStatement.values[3]).toBe(
-                rotatedTokenHash,
-            );
+            expect(rollbackStatement.values).toEqual([
+				oldTokenHash,
+				1700000000,
+				expect.any(Number),
+				42,
+				rotatedTokenHash,
+			]);
         } finally {
             consoleError.mockRestore();
         }

@@ -1,5 +1,719 @@
 window.HACYPAA_PRODUCTS = [
   {
+    "id": "6ae4f7aa56ca05b4b30c6beb",
+    "printifyProductId": "6ae4f7aa56ca05b4b30c6beb",
+    "title": "Gargoyle Sketches T-Shirt | Gothic Creature Illustration",
+    "currency": "USD",
+    "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front",
+    "defaultVariantId": 67441,
+    "options": [
+      {
+        "type": "color",
+        "title": "Gildan Colors",
+        "items": [
+          {
+            "id": 521,
+            "externalId": "521",
+            "label": "White",
+            "values": [
+              "#ffffff"
+            ]
+          },
+          {
+            "id": 525,
+            "externalId": "525",
+            "label": "Heather Orange",
+            "values": [
+              "#FF8B4A"
+            ]
+          },
+          {
+            "id": 421,
+            "externalId": "421",
+            "label": "Sand",
+            "values": [
+              "#DCD2BE"
+            ]
+          },
+          {
+            "id": 386,
+            "externalId": "386",
+            "label": "Cornsilk",
+            "values": [
+              "#F7EF8F"
+            ]
+          },
+          {
+            "id": 4748,
+            "externalId": "4748",
+            "label": "Sage",
+            "values": [
+              "#a4b09e"
+            ]
+          },
+          {
+            "id": 389,
+            "externalId": "389",
+            "label": "Mint Green",
+            "values": [
+              "#b1e0c0"
+            ]
+          },
+          {
+            "id": 392,
+            "externalId": "392",
+            "label": "Light Blue",
+            "values": [
+              "#d6e6f7"
+            ]
+          },
+          {
+            "id": 513,
+            "externalId": "513",
+            "label": "Azalea",
+            "values": [
+              "#EF8FBC"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "size",
+        "title": "Clothing sizes",
+        "items": [
+          {
+            "id": 13,
+            "externalId": "13",
+            "label": "XS",
+            "values": null
+          },
+          {
+            "id": 14,
+            "externalId": "14",
+            "label": "S",
+            "values": null
+          },
+          {
+            "id": 15,
+            "externalId": "15",
+            "label": "M",
+            "values": null
+          },
+          {
+            "id": 16,
+            "externalId": "16",
+            "label": "L",
+            "values": null
+          },
+          {
+            "id": 17,
+            "externalId": "17",
+            "label": "XL",
+            "values": null
+          },
+          {
+            "id": 18,
+            "externalId": "18",
+            "label": "2XL",
+            "values": null
+          },
+          {
+            "id": 19,
+            "externalId": "19",
+            "label": "3XL",
+            "values": null
+          },
+          {
+            "id": 20,
+            "externalId": "20",
+            "label": "4XL",
+            "values": null
+          },
+          {
+            "id": 21,
+            "externalId": "21",
+            "label": "5XL",
+            "values": null
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": 38177,
+        "printifyVariantId": "38177",
+        "retailPrice": 3000,
+        "options": [
+          15,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67829,
+        "printifyVariantId": "67829",
+        "retailPrice": 3000,
+        "options": [
+          521,
+          13
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38163,
+        "printifyVariantId": "38163",
+        "retailPrice": 3000,
+        "options": [
+          14,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38191,
+        "printifyVariantId": "38191",
+        "retailPrice": 3000,
+        "options": [
+          16,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38205,
+        "printifyVariantId": "38205",
+        "retailPrice": 3000,
+        "options": [
+          521,
+          17
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38219,
+        "printifyVariantId": "38219",
+        "retailPrice": 3000,
+        "options": [
+          18,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 42120,
+        "printifyVariantId": "42120",
+        "retailPrice": 3000,
+        "options": [
+          19,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 66211,
+        "printifyVariantId": "66211",
+        "retailPrice": 3715,
+        "options": [
+          20,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 95175,
+        "printifyVariantId": "95175",
+        "retailPrice": 3803,
+        "options": [
+          21,
+          521
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38191/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64757,
+        "printifyVariantId": "64757",
+        "retailPrice": 3000,
+        "options": [
+          525,
+          14
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64765,
+        "printifyVariantId": "64765",
+        "retailPrice": 3000,
+        "options": [
+          15,
+          525
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64773,
+        "printifyVariantId": "64773",
+        "retailPrice": 3000,
+        "options": [
+          16,
+          525
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64781,
+        "printifyVariantId": "64781",
+        "retailPrice": 3000,
+        "options": [
+          525,
+          17
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64789,
+        "printifyVariantId": "64789",
+        "retailPrice": 3000,
+        "options": [
+          525,
+          18
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 64797,
+        "printifyVariantId": "64797",
+        "retailPrice": 3000,
+        "options": [
+          525,
+          19
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/64773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67436,
+        "printifyVariantId": "67436",
+        "retailPrice": 3000,
+        "options": [
+          421,
+          14
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67441,
+        "printifyVariantId": "67441",
+        "retailPrice": 3000,
+        "options": [
+          15,
+          421
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67446,
+        "printifyVariantId": "67446",
+        "retailPrice": 3000,
+        "options": [
+          421,
+          16
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67451,
+        "printifyVariantId": "67451",
+        "retailPrice": 3000,
+        "options": [
+          17,
+          421
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67456,
+        "printifyVariantId": "67456",
+        "retailPrice": 3000,
+        "options": [
+          18,
+          421
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 67461,
+        "printifyVariantId": "67461",
+        "retailPrice": 3000,
+        "options": [
+          19,
+          421
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38223,
+        "printifyVariantId": "38223",
+        "retailPrice": 3000,
+        "options": [
+          14,
+          386
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38225,
+        "printifyVariantId": "38225",
+        "retailPrice": 3000,
+        "options": [
+          15,
+          386
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38227,
+        "printifyVariantId": "38227",
+        "retailPrice": 3000,
+        "options": [
+          386,
+          16
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38229,
+        "printifyVariantId": "38229",
+        "retailPrice": 3000,
+        "options": [
+          17,
+          386
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38231,
+        "printifyVariantId": "38231",
+        "retailPrice": 3000,
+        "options": [
+          18,
+          386
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 42110,
+        "printifyVariantId": "42110",
+        "retailPrice": 3000,
+        "options": [
+          386,
+          19
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38227/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105284,
+        "printifyVariantId": "105284",
+        "retailPrice": 3000,
+        "options": [
+          4748,
+          14
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105285,
+        "printifyVariantId": "105285",
+        "retailPrice": 3000,
+        "options": [
+          4748,
+          15
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105286,
+        "printifyVariantId": "105286",
+        "retailPrice": 3000,
+        "options": [
+          4748,
+          16
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105287,
+        "printifyVariantId": "105287",
+        "retailPrice": 3000,
+        "options": [
+          4748,
+          17
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105288,
+        "printifyVariantId": "105288",
+        "retailPrice": 3000,
+        "options": [
+          4748,
+          18
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 105289,
+        "printifyVariantId": "105289",
+        "retailPrice": 3000,
+        "options": [
+          19,
+          4748
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/105286/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68759,
+        "printifyVariantId": "68759",
+        "retailPrice": 3000,
+        "options": [
+          14,
+          389
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68767,
+        "printifyVariantId": "68767",
+        "retailPrice": 3000,
+        "options": [
+          15,
+          389
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68773,
+        "printifyVariantId": "68773",
+        "retailPrice": 3000,
+        "options": [
+          389,
+          16
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68779,
+        "printifyVariantId": "68779",
+        "retailPrice": 3000,
+        "options": [
+          17,
+          389
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68785,
+        "printifyVariantId": "68785",
+        "retailPrice": 3000,
+        "options": [
+          389,
+          18
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 68791,
+        "printifyVariantId": "68791",
+        "retailPrice": 3000,
+        "options": [
+          389,
+          19
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/68773/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38157,
+        "printifyVariantId": "38157",
+        "retailPrice": 3000,
+        "options": [
+          14,
+          392
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38171,
+        "printifyVariantId": "38171",
+        "retailPrice": 3000,
+        "options": [
+          392,
+          15
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38185,
+        "printifyVariantId": "38185",
+        "retailPrice": 3000,
+        "options": [
+          16,
+          392
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38199,
+        "printifyVariantId": "38199",
+        "retailPrice": 3000,
+        "options": [
+          17,
+          392
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38213,
+        "printifyVariantId": "38213",
+        "retailPrice": 3000,
+        "options": [
+          18,
+          392
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 42114,
+        "printifyVariantId": "42114",
+        "retailPrice": 3000,
+        "options": [
+          392,
+          19
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 66200,
+        "printifyVariantId": "66200",
+        "retailPrice": 3715,
+        "options": [
+          20,
+          392
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38185/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38224,
+        "printifyVariantId": "38224",
+        "retailPrice": 3000,
+        "options": [
+          513,
+          14
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38226,
+        "printifyVariantId": "38226",
+        "retailPrice": 3000,
+        "options": [
+          513,
+          15
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38228,
+        "printifyVariantId": "38228",
+        "retailPrice": 3000,
+        "options": [
+          16,
+          513
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38230,
+        "printifyVariantId": "38230",
+        "retailPrice": 3000,
+        "options": [
+          513,
+          17
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 38232,
+        "printifyVariantId": "38232",
+        "retailPrice": 3000,
+        "options": [
+          513,
+          18
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      },
+      {
+        "id": 42121,
+        "printifyVariantId": "42121",
+        "retailPrice": 3000,
+        "options": [
+          19,
+          513
+        ],
+        "outOfStock": false,
+        "image": "https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/38228/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+      }
+    ]
+  },
+  {
     "id": 31236013,
     "printifyProductId": "6a8c9e58a171ffe9230fc306",
     "title": "Divine Paradox Band Hoodie",

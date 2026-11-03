@@ -90,9 +90,14 @@
             const data = await response.json().catch(() => null);
 
             if (!response.ok || data?.ok !== true) {
+               if (response.status === 404) {
+                    document
+                        .querySelector("#payment-link-resend")
+                        ?.removeAttribute("hidden");
+               }
+
                 throw new Error(
-                    data?.error ||
-                        "Could not verify this payment link.",
+                    data?.error || "Could not verify this payment link.",
                 );
             }
 
@@ -261,6 +266,60 @@
             button.textContent = "Report payment";
         }
     });
+
+    const resendButton = document.querySelector("#payment-link-resend");
+
+resendButton?.addEventListener("click", async function () {
+    if (busy) return;
+    busy = true;
+    resendButton.disabled = true;
+    resendButton.textContent = "Sending...";
+    setFeedback(linkFeedback, "Requesting a new payment link...", "pending");
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(
+            apiBase + "/registrations/resend-payment-link",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ paymentAccessToken: token }),
+                signal: controller.signal,
+            },
+        );
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || data?.ok !== true || data?.emailSent !== true) {
+            throw new Error(
+                response.status === 404
+                    ? "This link may have been replaced. Open your most recent payment email."
+                    : data?.error || "Could not send a new payment link.",
+            );
+        }
+
+        setFeedback(
+            linkFeedback,
+            "A new payment link was sent to the email address on your registration. Open that email to continue.",
+            "success",
+        );
+        resendButton.hidden = true;
+    } catch (error) {
+        setFeedback(
+            linkFeedback,
+            error.name === "AbortError"
+                ? "The request timed out. Check your email before trying again."
+                : error.message || "Could not send a new payment link.",
+            "error",
+        );
+    } finally {
+        clearTimeout(timer);
+        busy = false;
+        resendButton.disabled = false;
+        resendButton.textContent = "Email me a new payment link";
+    }
+});
 
     loadRegistrations();
 })();

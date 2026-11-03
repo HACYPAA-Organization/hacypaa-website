@@ -2,6 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self'
+          https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js
+          https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js
+          https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.9/dist/jspdf.plugin.autotable.min.js;
+        style-src 'self';
+        img-src 'self' data: blob:;
+        connect-src 'self'
+          https://ffhfbdazrbkksfuhmbpn.supabase.co
+          https://checkout-api.tgp-services.workers.dev
+          http://127.0.0.1:8787;
+        font-src 'self';
+        object-src 'none';
+        base-uri 'none';
+        form-action 'self';
+      "
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <meta

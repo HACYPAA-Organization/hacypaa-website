@@ -1098,7 +1098,8 @@ async function handlePaymentLinkLookup(
 				amount_due_cents AS amountDueCents,
 				currency
 			FROM registrations
-			WHERE PAYMENT_ACCESS_TOKEN_HASH = ?
+			WHERE payment_access_token_hash = ?
+			  AND payment_access_token_expires_at > unixepoch()
 			LIMIT 1
 		`,
 	)
@@ -1184,12 +1185,14 @@ export async function storeRegistration(db, registration) {
                 amount_due_cents,
 				currency,
 				status,
-				payment_access_token_hash
+				payment_access_token_hash,
+				payment_access_token_expires_at
             )
             VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?,
 					?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-					'usd', 'awaiting_payment', ?
+					'usd', 'awaiting_payment', ?,
+					unixepoch() + 2592000
 			)
             ON CONFLICT (submission_key) DO NOTHING
         `).bind(
@@ -1309,6 +1312,11 @@ export async function handleResendPaymentLink(
 			responseHeaders,
 		);
 	}
+	const providedPaymentToken =
+		cleanText(body?.paymentAccessToken).toLowerCase();
+
+	const usesPaymentToken =
+		/^[0-9a-f]{64}$/.test(providedPaymentToken);
 
 	const submissionKey =
 		cleanText(body?.submissionKey).toLowerCase();
@@ -1319,9 +1327,12 @@ export async function handleResendPaymentLink(
 		 /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 	if (
-		!validSubmissionKey.test(submissionKey) ||
-		!email ||
-		email.length > 254
+		!usesPaymentToken &&
+		(
+			!validSubmissionKey.test(submissionKey) ||
+			!email ||
+			email.length > 254
+		)
 	) {
 		return json(
 			{
@@ -1345,14 +1356,22 @@ export async function handleResendPaymentLink(
 				amount_due_cents AS amountDueCents,
 				currency,
 				payment_access_token_hash AS currentTokenHash,
+				payment_access_token_expires_at AS currentTokenExpiresAt,
 				registration_email_sent_at AS registrationEmailSentAt
 			FROM registrations
-			WHERE submission_key = ? AND email = ?
+			WHERE ${
+				usesPaymentToken
+					? "payment_access_token_hash =?"
+					: "submission_key = ? AND email = ?"
+			}
 			LIMIT 1
 		`,
 	)
-
-		.bind(submissionKey, email)
+		.bind(
+			...(usesPaymentToken
+				? [await hashPaymentAccessToken(providedPaymentToken)]
+				: [submissionKey, email]),
+		)
 		.first();
 
 	if (!registration) {
@@ -1367,7 +1386,11 @@ export async function handleResendPaymentLink(
 		);
 	}
 
-	if (registration.status !== "awaiting_payment") {
+	if (
+		!["awaiting_payment", "payment_not_found"].includes(
+			registration.status,
+		)
+	) {
 		return json(
 			{
 				ok: false,
@@ -1420,10 +1443,11 @@ export async function handleResendPaymentLink(
 			UPDATE registrations
 			SET
 				payment_access_token_hash = ?,
+				payment_access_token_expires_at = unixepoch() + 2592000,
 				updated_at = ?
 			WHERE
 				id = ?
-				AND status = 'awaiting_payment'
+				AND status IN ('awaiting_payment', 'payment_not_found')
 				AND (
 					payment_access_token_hash = ?
 					OR (
@@ -1481,6 +1505,7 @@ export async function handleResendPaymentLink(
 					UPDATE registrations
 					SET
 						payment_access_token_hash = ?,
+						payment_access_token_expires_at = ?,
 						updated_at = ?
 					WHERE
 						id = ?
@@ -1489,6 +1514,7 @@ export async function handleResendPaymentLink(
 			)
 				.bind(
 					registration.currentTokenHash,
+					registration.currentTokenExpiresAt ?? null,
 					now,
 					registration.id,
 					paymentAccessTokenHash,
@@ -1547,6 +1573,14 @@ export async function handleResendPaymentLink(
 				name: error?.name,
 				message: error?.message,
 			},
+		);
+	}
+
+	if (usesPaymentToken) {
+		return json(
+			{ ok: true, emailSent: true },
+			200,
+			responseHeaders,
 		);
 	}
 
@@ -1832,7 +1866,7 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 		: null;
 
 	const registrationMatch = usesPaymentToken
-		? "payment_access_token_hash = ?"
+		? "payment_access_token_hash = ? AND payment_access_token_expires_at > unixepoch()"
 		: "registration_code = ? AND submission_key = ?";
 
 	const registrationMatchValues = usesPaymentToken
@@ -3020,15 +3054,98 @@ export default {
 			});
 		}
 
+		const publicWritePaths = new Set([
+			"/registrations",
+			"/registrations/resend-payment-link",
+			"/registrations/payment-report",
+			"/panelists",
+			"/checkout/shipping-quote",
+			"/checkout/session",
+		]);
+
+		if (
+			request.method === "POST" &&
+			publicWritePaths.has(url.pathname)
+		) {
+			const headers = {
+				...corsHeaders,
+				"Cache-Control": "no-store",
+				"Retry-After": "60",
+			};
+
+			const clientIp =
+				request.headers.get("CF-Connecting-IP") || "unknown";
+
+			try {
+				const { success } = await env.PUBLIC_WRITE_LIMITER.limit({
+					key: url.pathname + ":" + clientIp,
+				});
+
+				if (!success) {
+					return json(
+						{ ok: false, error: "Too many requests. Please wait a minute and try again." },
+						429,
+						headers,
+					);
+				}
+			} catch {
+				console.error("Public request rate limiter unavailable");
+
+				return json(
+					{ ok: false, error: "Service temporarily unavailable. Please try again."},
+					503,
+					headers,
+				);
+			}
+		}
+
+		const diagnosticPaths = new Set([
+			"/stripe/status",
+			"/printify/status",
+			"/printify/products",
+		]);
+
+		if (
+			request.method === "GET" &&
+			diagnosticPaths.has(url.pathname)
+		) {
+			const authorization = await authorizePreregAdmin(request, env);
+
+			const headers = {
+				...corsHeaders,
+				"Cache-Control": "no-store",
+			};
+
+			if (!authorization.ok) {
+				return json(
+					{ ok: false, error: authorization.error },
+					authorization.status,
+					headers,
+				);
+			}
+
+			if (authorization.role !== "super_admin") {
+				return json(
+					{ ok: false, error: "Forbidden" },
+					403,
+					headers,
+				);
+			}
+		}
+
 		if (
 			request.method === "GET" &&
 			url.pathname === "/registrations/payment-link"
 		) {
-			return handlePaymentLinkLookup(
+			const response = await handlePaymentLinkLookup(
 				request,
 				env,
 				corsHeaders,
 			);
+
+			response.headers.set("Cache-Control","no-store");
+
+			return response;
 		}
 
 		if (
@@ -4329,7 +4446,6 @@ export default {
 					{
 						ok: false,
 						error: "Could not create Stripe Checkout Session",
-						details: error instanceof Error ? error.message : String(error),
 					},
 					{ status: 500, headers: corsHeaders },
 				);

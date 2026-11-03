@@ -23,6 +23,16 @@
 			"database_id": "0a58d01a-519f-4758-884a-7b16bb519bd4"
 		}
 	],
+	"ratelimits": [
+		{
+			"name": "PUBLIC_WRITE_LIMITER",
+			"namespace_id": "910001",
+			"simple": {
+				"limit": 30,
+				"period": 60
+			}
+		}
+	],
 
 	"queues": {
 		"producers": [

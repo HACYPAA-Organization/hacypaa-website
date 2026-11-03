@@ -24,6 +24,8 @@
       "Garment-dyed Comfort Colors tee with the double puppy graphic.",
     "Choose Your Own Conception Graphic Tee":
       "Garment-dyed Comfort Colors tee featuring Choose Your Own Conception.",
+    "Gargoyle Sketches T-Shirt | Gothic Creature Illustration":
+      "Gargoyle artwork from our Salon des Refusés collection.",
   };
 
   let cart = loadCart();
@@ -207,7 +209,15 @@
 
   function buildProductDialog(product) {
     const groups = getGroups(product);
-    const firstVariant = availableVariants(product)[0];
+    const variants = availableVariants(product);
+
+    const firstVariant =
+      variants.find(function (variant) {
+        return (
+          String(variant.printifyVariantId) ===
+          String(product.defaultVariantId)
+        );
+      }) || variants[0];
 
     if (!firstVariant || !groups.color || !groups.size) return;
 
@@ -449,7 +459,7 @@
       const empty = document.createElement("p");
       empty.className = "cart-empty";
       empty.textContent =
-        "Your cart is empty. The paradox remains wearable, unfortunately.";
+        "Your cart is empty. The paradox remains wearable.";
       cartItems.append(empty);
     }
 
@@ -550,16 +560,19 @@
   }
 
   if (productGrid) {
-    productGrid.addEventListener("click", function (event) {
-      const button = event.target.closest("[data-product-open]");
-      if (!button) return;
-      const product = products.find(function (candidate) {
-        return String(candidate.id) === button.dataset.productOpen;
-      });
-      if (!product) return;
-      buildProductDialog(product);
-      productDialog.showModal();
+   document.addEventListener("click", function (event) {
+    const button = event.target.closest("[data-product-open]");
+    if (!button) return;
+
+    const product = products.find(function (candidate) {
+      return String(candidate.id) === button.dataset.productOpen;
     });
+
+    if (!product) return;
+
+    buildProductDialog(product);
+    productDialog.showModal();
+   });
   }
 
   if (productDialogContent) {

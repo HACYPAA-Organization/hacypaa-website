@@ -87,10 +87,10 @@
       <section class="merch-hero" id="top">
         <div class="merch-hero-copy">
           <p class="merch-overline">Official HACYPAA XI merchandise</p>
-          <h1>Wear the<br /><em>paradox.</em></h1>
+          <h1>Salon des<br /><em>Refus&eacute;s</em></h1>
           <p>
-            Official Divine Paradox apparel, made to order. Choose your
-            color and size, then have it shipped directly to you.
+            The Divine Paradox collection: a little unconventional,
+            made to order, and shipped directly to you.
           </p>
           <div class="merch-hero-actions">
             <a class="merch-button merch-button-red" href="#collection"
@@ -106,15 +106,30 @@
           </div>
         </div>
 
-        <div class="merch-hero-art" aria-label="HACYPAA XI merchandise preview">
+        <div class="merch-hero-art" aria-label="Featured merchandise">
+          <div class="merch-featured-visual">
           <img
-            src="https://images-api.printify.com/mockup/6a8b7095ca6e4a1d0c04f784/32872/98424/divine-paradox-band-hoodie.jpg?camera_label=front&amp;revision=1787525915105"
-            alt="Divine Paradox Band Hoodie"
+            src="https://images-api.printify.com/mockup/6ae4f7aa56ca05b4b30c6beb/67446/97992/gargoyle-sketches-t-shirt-gothic-creature-illustration.jpg?camera_label=front"
+            alt="Front mockup of the Gargoyle Sketches T-shirt"
             width="900"
             height="900"
             decoding="async"
+            fetchpriority="high"
           />
-          <p><span>HACYPAA XI</span><strong>Divine Paradox</strong></p>
+
+          <button
+            class="merch-button merch-button-red merch-featured-shop"
+            type="button"
+            data-product-open="6ae4f7aa56ca05b4b30c6beb"
+          >
+            Shop this shirt
+          </button>
+        </div>
+
+          <p>
+            <span>Featured piece</span>
+            <strong>Gargoyle Sketches</strong>
+          </p>
         </div>
       </section>
 
@@ -122,7 +137,7 @@
         <div class="merch-section-heading">
           <div>
             <p class="merch-overline">01 / The collection</p>
-            <h2>Three pieces.<br />No filler.</h2>
+            <h2>Four pieces.<br />No filler.</h2>
           </div>
           <p>
             Select a piece to see every available color and size. Your cart
@@ -274,7 +289,7 @@
             required
           />
 
-          <label for="checkout-shippingline2">Apartment or suite (optional)</label>
+          <label for="checkout-shipping-line2">Apartment or suite (optional)</label>
           <input
             id="checkout-shipping-line2"
             name="line2"
@@ -327,8 +342,8 @@
 
     <script src="https://js.stripe.com/dahlia/stripe.js"></script>
     <script src="/assets/js/script.js"></script>
-    <script src="/assets/js/merch-products.js"></script>
-    <script src="/assets/js/merch.js"></script>
-    <script src="/assets/js/checkout.js?v=4"></script>
+    <script src="/assets/js/merch-products.js?v=20261103"></script>
+    <script src="/assets/js/merch.js?v=20261103"></script>
+    <script src="/assets/js/checkout.js?v=20261103"></script>
   </body>
 </html>
