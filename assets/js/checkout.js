@@ -9,7 +9,7 @@
         ? "http://127.0.0.1:8787"
         : "https://checkout-api.tgp-services.workers.dev";
     const stripePublishableKey =
-    "pk_test_51U82LpM0AC70O1UBmLUALv7KZvdV8GvbUvTNJn9tJ9RMQmuOUX0VyOj69a5yGuojELAfpTlHVssYZJO9MGJQcsyw00jOVw0ENc";
+    "pk_live_51U82LpM0AC70O1UBhevzm4CAYh0N9JX501HQ7ri4hQy0066vuBUWay1xAbjUBXwdsXN0T0qQl3LeuTqqdnlFcXn300Rs2Yczbb";
 
     const checkoutButton = document.querySelector("[data-checkout-open]");
     const checkoutDialog = document.querySelector("#checkout-dialog");
