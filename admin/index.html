@@ -6,10 +6,7 @@
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
-        script-src 'self'
-          https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js
-          https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js
-          https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.9/dist/jspdf.plugin.autotable.min.js;
+        script-src 'self';
         style-src 'self';
         img-src 'self' data: blob:;
         connect-src 'self'
@@ -17,6 +14,8 @@
           https://checkout-api.tgp-services.workers.dev
           http://127.0.0.1:8787;
         font-src 'self';
+        worker-src 'none';
+        frame-src 'none';
         object-src 'none';
         base-uri 'none';
         form-action 'self';
@@ -379,6 +378,9 @@
 
                 <div class="admin-section-actions">
                   <p id="admin-summary"></p>
+                  <p id="admin-registration-page" role="status"></p>
+                  <button id="admin-registration-previous" class="button" type="button" disabled>Previous</button>
+                  <button id="admin-registration-next" class="button" type="button" disabled>Next</button>
 
                   <button
                     id="admin-export-registrations"
@@ -389,13 +391,22 @@
                     Export CSV
                   </button>
                   <button
+                    id="admin-export-registration-roster-pdf"
+                    class="button"
+                    type="button"
+                    aria-label="Export all registrations as a compact PDF roster"
+                    disabled
+                  >
+                    Roster PDF
+                  </button>
+                  <button
                     id="admin-export-registrations-pdf"
                     class="button"
                     type="button"
-                    aria-label="Export registrations as PDF"
+                    aria-label="Export detailed registration sheets as PDF"
                     disabled
                   >
-                    Export PDF
+                    Registration sheets PDF
                   </button>
                 </div>
               </div>
@@ -447,6 +458,9 @@
 
                 <div class="admin-section-actions">
                   <p id="admin-panelist-summary"></p>
+                  <p id="admin-panelist-page" role="status"></p>
+                  <button id="admin-panelist-previous" class="button" type="button" disabled>Previous</button>
+                  <button id="admin-panelist-next" class="button" type="button" disabled>Next</button>
 
                   <button
                     id="admin-export-panelists"
@@ -505,7 +519,7 @@
 
     <script src="/assets/js/script.js"></script>
     <script
-      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"
+      src="/assets/vendor/supabase-2.117.2.umd.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"
     ></script>
     <script src="/assets/js/supabase-config.js"></script>
     <script
@@ -513,15 +527,17 @@
       defer
     ></script>
     <script
-      src ="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"
+      src="/assets/vendor/jspdf-4.2.1.umd.min.js" integrity="sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3" crossorigin="anonymous"
       defer
     ></script>
     <script
-      src="https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.9/dist/jspdf.plugin.autotable.min.js"
+      src="/assets/vendor/jspdf-autotable-5.0.9.min.js" integrity="sha384-A77YsHWitrPuAj8E0AuB033EXzymUxIajnWKPzrrzqFoYYSCEpFennDUjMG2R1L3" crossorigin="anonymous"
       defer
     ></script>
+    <script src="/assets/js/admin-data.js?v=20261103-security" defer></script>
+    <script src="/assets/js/registration-roster-pdf.js?v=20261104" defer></script>
     <script
-      src="../assets/js/preregistration-admin.js"
+      src="../assets/js/preregistration-admin.js?v=20261105-delivery"
       defer
       ></script>
   </body>

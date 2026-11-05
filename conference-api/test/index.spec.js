@@ -6,7 +6,7 @@ import {
 	it,
 	vi
 } from "vitest";
-import worker, {
+import productionWorker, {
 	authorizePreregAdmin,
 	buildPrintifyOrderPayload,
 	handleAdminPanelists,
@@ -22,6 +22,10 @@ import {
 	generateKeyPair,
 	SignJWT,
 } from "jose";
+
+const worker = { ...productionWorker, fetch(request, bindings) {
+    return productionWorker.fetch(request, { ENVIRONMENT: "test", BOT_PROTECTION_MODE: "disabled", RECIPIENT_QUOTA_MODE: "disabled", ...bindings });
+} };
 
 const allowedOrigin = "http://127.0.0.1:5500";
 
@@ -221,8 +225,9 @@ describe("HACYPAA checkout API", () => {
 		const payload = buildPrintifyOrderPayload({
 			order: {
 				id: 42,
+                livemode: 1,
 				livemode: 1,
-				stripe_session_id: "cs_test_order_42",
+				stripe_session_id: "cs_live_order42",
 				customer_email: "customer@example.com",
 				customer_phone: "8165550123",
 				shipping_name: "John Smith",
@@ -244,7 +249,7 @@ describe("HACYPAA checkout API", () => {
 		});
 
 		expect(payload).toEqual({
-			external_id: "cs_test_order_42",
+			external_id: "cs_live_order42",
 			label: "HACYPAA-42",
 			line_items: [
 				{
@@ -335,6 +340,7 @@ describe("HACYPAA checkout API", () => {
 								id: 45,
 								livemode,
 								fulfillment_status: "pending",
+            fulfillment_attempts: 0, printify_submission_state: "new", printify_post_started_at: null,
 								printify_order_id: null,
 							}),
 						}),
@@ -383,7 +389,9 @@ describe("HACYPAA checkout API", () => {
 				},
 				{
 					ORDERS_DB: { prepare },
-					PRINTIFY_API_TOKEN: "test-token",
+					FULFILLMENT_MODE: "live",
+                    STRIPE_SECRET_KEY: "sk_live_localfixture",
+                    PRINTIFY_API_TOKEN: "test-token",
 					PRINTIFY_SHOP_ID: "12345",
 				},
 			);
@@ -398,7 +406,7 @@ describe("HACYPAA checkout API", () => {
 		const order = {
 			id: 42,
 			livemode: 1,
-			stripe_session_id: "cs_test_order_42",
+			stripe_session_id: "cs_live_order42",
 			customer_email: "customer@example.com",
 			customer_phone: "8165550123",
 			shipping_name: "John Smith",
@@ -409,6 +417,7 @@ describe("HACYPAA checkout API", () => {
 			shipping_postal_code: "64111",
 			shipping_country: "US",
 			fulfillment_status: "pending",
+            fulfillment_attempts: 0, printify_submission_state: "new", printify_post_started_at: null,
 			printify_order_id: null,
 		};
 
@@ -430,6 +439,7 @@ describe("HACYPAA checkout API", () => {
 		});
 
 		const prepare = vi.fn((sql) => {
+            if (sql.includes("printify_post_started_at = unixepoch()")) return { bind: () => ({ run: async () => ({ meta: { changes: 1 } }) }) };
 			if (sql.includes ("FROM order_items")) {
 				return {
 					bind: () => ({
@@ -512,7 +522,9 @@ describe("HACYPAA checkout API", () => {
 			},
 			{
 				ORDERS_DB: { prepare },
-				PRINTIFY_API_TOKEN: "test-token",
+				FULFILLMENT_MODE: "live",
+                    STRIPE_SECRET_KEY: "sk_live_localfixture",
+                    PRINTIFY_API_TOKEN: "test-token",
 				PRINTIFY_SHOP_ID: "test-shop",
 			},
 		);
@@ -609,7 +621,7 @@ describe("HACYPAA checkout API", () => {
 		const order = {
 			id: 44,
 			livemode: 1,
-			stripe_session_id: "cs_test_failure_44",
+			stripe_session_id: "cs_live_failure44",
 			customer_email: "customer@example.com",
 			customer_phone: "8165550123",
 			shipping_name: "John Smith",
@@ -620,6 +632,7 @@ describe("HACYPAA checkout API", () => {
 			shipping_postal_code: "64111",
 			shipping_country: "US",
 			fulfillment_status: "pending",
+            fulfillment_attempts: 0, printify_submission_state: "new", printify_post_started_at: null,
 			printify_order_id: null,
 		};
 
@@ -646,6 +659,7 @@ describe("HACYPAA checkout API", () => {
 		}));
 
 		const prepare = vi.fn((sql) => {
+            if (sql.includes("printify_post_started_at = unixepoch()")) return { bind: () => ({ run: async () => ({ meta: { changes: 1 } }) }) };
 			if (sql.includes("FROM order_items")) {
 				return {
 					bind: () => ({
@@ -717,7 +731,9 @@ describe("HACYPAA checkout API", () => {
 			},
 			{
 				ORDERS_DB: { prepare },
-				PRINTIFY_API_TOKEN: "test-token",
+				FULFILLMENT_MODE: "live",
+                    STRIPE_SECRET_KEY: "sk_live_localfixture",
+                    PRINTIFY_API_TOKEN: "test-token",
 				PRINTIFY_SHOP_ID: "test-shop",
 			},
 		);
@@ -726,7 +742,7 @@ describe("HACYPAA checkout API", () => {
 		expect(claimRun).toHaveBeenCalledOnce();
 		expect(failureRun).toHaveBeenCalledOnce();
 		expect(failureBind).toHaveBeenCalledWith(
-			"Printify rejected order: Printify unavailable",
+			"Printify rejected order: HTTP 503",
 			44,
 		);
 
@@ -740,7 +756,7 @@ describe("HACYPAA checkout API", () => {
 				method: "POST",
 				headers: {
 					Origin: allowedOrigin,
-					"Content-Type": "applications/json",
+					"Content-Type": "application/json",
 				},
 				body: "{",
 			}),
@@ -1845,9 +1861,8 @@ describe("HACYPAA checkout API", () => {
 			],
 		});
 
-		const prepare = vi.fn(() => ({
-			all,
-		}));
+		const first = vi.fn().mockResolvedValue({ snapshot: 7, total: 1, new: 1, selected: 0, not_selected: 0 });
+        const prepare = vi.fn(() => ({ all, first, bind: () => ({ all, first }) }));
 
 		const fetchMock = vi.fn(
 			async (input, options = {}) => {
@@ -1931,7 +1946,7 @@ describe("HACYPAA checkout API", () => {
 
 		expect(response.status).toBe(200);
 
-		expect(await response.json()).toEqual({
+		expect(await response.json()).toMatchObject({
 			ok: true,
 			panelists: [
 				{
@@ -1957,7 +1972,7 @@ describe("HACYPAA checkout API", () => {
 			],
 		});
 
-		expect(prepare).toHaveBeenCalledOnce();
+		expect(prepare).toHaveBeenCalledTimes(3);
 
 		expect(
 			prepare.mock.calls[0][0]

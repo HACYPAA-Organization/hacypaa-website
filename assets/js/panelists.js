@@ -112,7 +112,7 @@
             );
 
             try {
-                const response = await fetch(
+                const response = await window.HACYPAAProtectedFetch(
                     apiBase + "/panelists",
                     {
                         method: "POST",

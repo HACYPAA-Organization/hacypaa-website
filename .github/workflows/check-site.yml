@@ -46,3 +46,15 @@ jobs:
       - name: Test Worker
         working-directory: conference-api
         run: npm test -- --run
+
+      - name: Check administrative dependency integrity and test isolation
+        run: node scripts/security-static-checks.mjs
+
+      - name: Test public verification and complete exports
+        run: node --test scripts/security-client.test.mjs
+
+      - name: Test vendor integrity with Windows Git line endings
+        run: node --test scripts/security-vendor-checkout.test.mjs
+
+      - name: Test compact registration PDF exports
+        run: node --test scripts/security-registration-roster.test.mjs

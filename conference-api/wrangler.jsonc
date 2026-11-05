@@ -12,6 +12,11 @@
 	},
 	"upload_source_maps": true,
 	"vars": {
+		"TURNSTILE_SITE_KEY": "0x4AAAAAAF0Dum-EVV3kRFkp",
+		"ENVIRONMENT": "production",
+		"BOT_PROTECTION_MODE": "required",
+		"ADMIN_AUDIT_RETENTION_DAYS": "365",
+		"FULFILLMENT_MODE": "live",
 		"PREREG_PRICE_CENTS": "2500",
 		"PUBLIC_SITE_URL": "https://hacypaa.us",
 		"PREREG_FROM_EMAIL": "HACYPAA XI Registration <registration@mail.hacypaa.us>"
@@ -34,6 +39,7 @@
 		}
 	],
 
+	"triggers": { "crons": ["*/15 * * * *"] },
 	"queues": {
 		"producers": [
 			{

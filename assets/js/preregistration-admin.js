@@ -48,6 +48,8 @@
         document.querySelector("#admin-export-panelists");
     const exportRegistrationsPdfButton =
         document.querySelector("#admin-export-registrations-pdf");
+    const exportRegistrationRosterPdfButton =
+        document.querySelector("#admin-export-registration-roster-pdf");
     const exportPanelistsPdfButton =
         document.querySelector("#admin-export-panelists-pdf");
 
@@ -72,9 +74,45 @@
         !exportRegistrationsButton ||
         !exportPanelistsButton ||
         !exportRegistrationsPdfButton ||
+        !exportRegistrationRosterPdfButton ||
         !exportPanelistsPdfButton
     ) {
         return;
+    }
+
+    const pageState = {
+        registrations: { cursors: [null], index: 0, data: null, busy: false },
+        panelists: { cursors: [null], index: 0, data: null, busy: false },
+    };
+    function pageCandidate(resource, direction) {
+        const state = pageState[resource];
+        if (direction === "next") return { index: state.index + 1, cursor: state.data?.pagination?.nextCursor };
+        if (direction === "previous") return { index: Math.max(0, state.index - 1), cursor: state.cursors[Math.max(0, state.index - 1)] };
+        if (direction === "current" && state.data) return { index: state.index, cursor: state.cursors[state.index] };
+        return { index: 0, cursor: null };
+    }
+    function updatePageControls(resource) {
+        const state = pageState[resource], prefix = resource === "registrations" ? "admin-registration" : "admin-panelist";
+        document.querySelector("#" + prefix + "-previous").disabled = state.busy || state.index === 0;
+        document.querySelector("#" + prefix + "-next").disabled = state.busy || !state.data?.pagination?.nextCursor;
+        document.querySelector("#" + prefix + "-page").textContent = state.data ?
+            `Page ${state.index + 1} - showing ${state.data[resource].length} of ${state.data.total}` : "";
+    }
+    function usePage(resource, candidate, data) {
+        const state = pageState[resource];
+        if (!candidate.index) state.cursors = [null];
+        state.index = candidate.index; state.cursors[state.index] = candidate.cursor; state.data = data;
+    }
+    function exportAll(resource, token) {
+        return window.HACYPAA_ADMIN_DATA.fetchAll(apiBase, resource, token, () =>
+            !dashboard.hidden && (resource === "registrations" ? permissions.registrations : permissions.volunteers));
+    }
+    for (const [resource, prefix, loader] of [
+        ["registrations", "admin-registration", loadRegistrations], ["panelists", "admin-panelist", loadPanelists],
+    ]) for (const direction of ["previous", "next"]) {
+        document.querySelector("#" + prefix + "-" + direction).addEventListener("click", () => {
+            if (!pageState[resource].busy) void loader(direction);
+        });
     }
 
     function showLogin(message = "") {
@@ -194,7 +232,38 @@
         return button;
     }
 
-    function renderRegistrations(registrations) {
+    function emailStateLabel(state) {
+        if (state.deliveryStatus === "delivered") return "Delivered";
+        if (["bounced", "complained", "failed", "suppressed", "delivery_delayed"].includes(state.deliveryStatus)) return state.deliveryStatus.replaceAll("_", " ");
+        return ({ sent: "Accepted by email provider", pending: "Queued", sending: "Sending", failed: "Queued for retry",
+            needs_review: "Needs administrator review", canceled: "Canceled", untracked: "No delivery history" })[state.status] || "Unknown";
+    }
+    async function confirmationEmailAction(registration, action, button) {
+        if (!permissions.registrations || dashboard.hidden || button.disabled) return;
+        if (action === "resend" && !window.confirm("Send another confirmation to the email address on this registration? A previous email may already have been delivered.")) return;
+        button.disabled = true;
+        button.dataset.confirmationRequestKey ||= crypto.randomUUID();
+        try {
+            const token = await adminAuth.getAccessToken();
+            if (!token) { showLogin("Your admin session has expired."); return; }
+            const response = await fetch(apiBase + "/admin/registrations/confirmation-email", {
+                method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+                body: JSON.stringify({ registrationCode: registration.registrationCode, action, requestKey: button.dataset.confirmationRequestKey }),
+            });
+            const data = await response.json();
+            if (response.status === 401 || response.status === 403) {
+                await adminAuth.signOut(); showLogin(data.error || "Your admin session has expired."); return;
+            }
+            if (!response.ok || data.ok !== true) throw new Error(data.error || "Could not process confirmation email.");
+            delete button.dataset.confirmationRequestKey;
+            await loadRegistrations();
+            setFeedback("Confirmation email: " + emailStateLabel(data.confirmationEmail) + ".",
+                ["failed", "needs_review"].includes(data.confirmationEmail.status) ? "error" : "success");
+        } catch (error) { setFeedback(error.message || "Could not process confirmation email.", "error"); }
+        finally { button.disabled = false; }
+    }
+
+    function renderRegistrations(registrations, metadata = pageState.registrations.data) {
         tableBody.replaceChildren();
 
         const reportedCount = registrations.filter(
@@ -208,9 +277,9 @@
         ).length;
 
         summary.textContent =
-            `${registrations.length} total · ` +
-            `${reportedCount} awaiting verification · ` +
-            `${confirmedCount} confirmed`;
+            `${metadata?.total ?? registrations.length} total · ` +
+            `${metadata?.counts?.payment_reported ?? reportedCount} awaiting verification · ` +
+            `${metadata?.counts?.confirmed ?? confirmedCount} confirmed`;
 
         emptyMessage.hidden = registrations.length !== 0;
 
@@ -437,6 +506,26 @@
                 actionsCell.textContent = "—";
             }
 
+            if (registration.status === "confirmed") {
+                const state = { status: registration.confirmationEmailStatus || "untracked", deliveryStatus: registration.confirmationEmailDeliveryStatus };
+                const mailStatus = document.createElement("small");
+                mailStatus.textContent = "Confirmation email: " + emailStateLabel(state);
+                actionsCell.append(mailStatus);
+                const action = ["sent", "untracked", "needs_review"].includes(state.status) ? "resend" : "retry";
+                const mailButton = document.createElement("button");
+                mailButton.type = "button"; mailButton.className = "admin-row-button";
+                mailButton.textContent = action === "resend" ? "Resend confirmation" : "Retry confirmation email";
+                mailButton.addEventListener("click", event => { event.stopPropagation(); void confirmationEmailAction(registration, action, mailButton); });
+                actionsCell.append(mailButton);
+                if (state.status === "sent") {
+                    const checkButton = document.createElement("button");
+                    checkButton.type = "button"; checkButton.className = "admin-row-button";
+                    checkButton.textContent = "Check email delivery";
+                    checkButton.addEventListener("click", event => { event.stopPropagation(); void confirmationEmailAction(registration, "refresh", checkButton); });
+                    actionsCell.append(checkButton);
+                }
+            }
+
             const deleteButton = document.createElement("button");
             deleteButton.type = "button";
             deleteButton.className = "admin-row-button";
@@ -465,7 +554,7 @@
         declined: "Declined",
     };
 
-    function renderPanelists(panelists) {
+    function renderPanelists(panelists, metadata = pageState.panelists.data) {
         panelistTableBody.replaceChildren();
         currentPanelists = [...panelists];
 
@@ -478,9 +567,9 @@
         ).length;
 
         panelistSummary.textContent =
-            `${panelists.length} total · ` +
-            `${newCount} new · ` +
-            `${selectedCount} selected`;
+            `${metadata?.total ?? panelists.length} total · ` +
+            `${metadata?.counts?.new ?? newCount} new · ` +
+            `${metadata?.counts?.selected ?? selectedCount} selected`;
 
         panelistEmptyMessage.hidden =
             panelists.length !== 0;
@@ -716,18 +805,7 @@
             statusSelect.value = savedPanelist.status;
             notesInput.value = savedPanelist.adminNotes || "";
 
-            const newCount = currentPanelists.filter(
-                (panelist) => panelist.status === "new",
-            ).length;
-
-            const selectedCount = currentPanelists.filter(
-                (panelist) => panelist.status === "selected",
-            ).length;
-
-            panelistSummary.textContent =
-                `${currentPanelists.length} total · ` +
-                `${newCount} new · ` +
-                `${selectedCount} selected`;
+            await loadPanelists();
 
             setPanelistFeedback(
                 `Panelist application ${panelistId} saved.`,
@@ -882,17 +960,20 @@
         doc.save(filename);
     }
 
-    async function exportRegistrationsPdf() {
+    async function exportRegistrationsPdf(layout = "individual") {
+        const roster = layout === "roster";
+        const button = roster ? exportRegistrationRosterPdfButton : exportRegistrationsPdfButton;
         if (
             !permissions.registrations ||
-            exportRegistrationsPdfButton.disabled
+            dashboard.hidden ||
+            button.disabled
         ) {
             return;
         }
 
-        exportRegistrationsPdfButton.disabled = true;
-        exportRegistrationsPdfButton.textContent = "Exporting...";
-        setFeedback("Preparing registration PDF...", "pending");
+        button.disabled = true;
+        button.textContent = "Exporting...";
+        setFeedback(roster ? "Preparing registration roster PDF..." : "Preparing registration sheets PDF...", "pending");
 
         try {
             const adminToken = await adminAuth.getAccessToken();
@@ -902,12 +983,7 @@
                 return;
             }
 
-            const response = await fetch(apiBase + "/admin/registrations", {
-                headers: {
-                    Authorization: "Bearer " + adminToken,
-                },
-                cache: "no-store",
-            });
+            const response = await exportAll("registrations", adminToken);
             const data = await response.json().catch(() => null);
 
             if (response.status === 401 || response.status === 403) {
@@ -933,6 +1009,14 @@
                 return;
             }
 
+            if (roster) {
+                const pdf = window.HACYPAA_REGISTRATION_ROSTER_PDF?.create(data.registrations);
+                if (!pdf) throw new Error("Roster PDF tools did not load. Reload the page and try again.");
+                pdf.save("hacypaa-registration-roster-" + new Date().toISOString().slice(0, 10) + ".pdf");
+                setFeedback(data.registrations.length + " registrations exported to the roster PDF.", "success");
+                return;
+            }
+
             const yesNo = (value) => value ? "Yes" : "No";
             const text = (value) => String(value ?? "").trim() || "Not Provided";
 
@@ -953,8 +1037,8 @@
                     ["Location", r.location],
                     ["Registration", [
                         "Status: " + (statusLabels[r.status] ||
-                            test(r.status)),
-                        "Submitted: " + formatDate(r.createAt),
+                            text(r.status)),
+                        "Submitted: " + formatDate(r.createdAt),
                         "Updated: " + formatDate(r.updatedAt),
                     ].join("\n")],
                     ["Payment", [
@@ -969,7 +1053,7 @@
                             paymentLabels[r.preferredPaymentMethod] ||
                             text(r.preferredPaymentMethod)
                         ),
-                        "Reproted method: " + (
+                        "Reported method: " + (
                             paymentLabels[r.paymentMethod] ||
                             r.paymentMethod || "Not reported"
                         ),
@@ -1013,8 +1097,8 @@
                 "error",
             );
         } finally {
-            exportRegistrationsPdfButton.textContent = "Export PDF";
-            exportRegistrationsPdfButton.disabled =
+            button.textContent = roster ? "Roster PDF" : "Registration sheets PDF";
+            button.disabled =
                 !permissions.registrations || dashboard.hidden;
         }
     }
@@ -1039,12 +1123,7 @@
                 return;
             }
 
-            const response = await fetch(apiBase + "/admin/registrations", {
-                headers: {
-                    Authorization: "Bearer " + adminToken,
-                },
-                cache: "no-store",
-            });
+            const response = await exportAll("registrations", adminToken);
             const data = await response.json().catch(() => null);
 
             if (response.status ===401 || response.status === 403) {
@@ -1162,12 +1241,7 @@
                 return;
             }
 
-            const response = await fetch(apiBase + "/admin/panelists", {
-                headers: {
-                    Authorization: "Bearer " + adminToken,
-                },
-                cache: "no-store",
-            });
+            const response = await exportAll("panelists", adminToken);
             const data = await response.json().catch(() => null);
 
             if (response.status === 401 || response.status === 403) {
@@ -1249,8 +1323,17 @@
         }
     }
 
-    function exportPanelists() {
-        if (currentPanelists.length === 0) {
+    async function exportPanelists() {
+        if (!permissions.volunteers || dashboard.hidden || exportPanelistsButton.disabled) return;
+        exportPanelistsButton.disabled = true;
+        try {
+            const token = await adminAuth.getAccessToken();
+            if (!token) { showLogin("Your admin session has expired."); return; }
+            const response = await exportAll("panelists", token);
+            const data = await response.json();
+            if (!response.ok || data.ok !== true) throw new Error(data.error || "Could not export panelists.");
+            const records = data.panelists;
+        if (records.length === 0) {
             setPanelistFeedback(
                 "There are no panelist records to export.",
                 "error",
@@ -1277,7 +1360,7 @@
             "Updated",
         ];
 
-        const rows = currentPanelists.map((panelist) => [
+        const rows = records.map((panelist) => [
             panelist.firstName,
             panelist.lastName,
             panelist.email,
@@ -1332,6 +1415,9 @@
             "Panelist CSV downloaded.",
             "success",
         );
+        } catch (error) { setPanelistFeedback(error.message || "Could not export panelists.", "error"); }
+        finally { exportPanelistsButton.disabled = !permissions.volunteers || dashboard.hidden; }
+
     }
 
     async function loadAdminAccess() {
@@ -1383,6 +1469,8 @@
                 !permissions.registrations;
             exportRegistrationsPdfButton.disabled =
                 !permissions.registrations;
+            exportRegistrationRosterPdfButton.disabled =
+                !permissions.registrations;
             exportPanelistsPdfButton.disabled =
                 !permissions.volunteers;
 
@@ -1412,7 +1500,9 @@
         }
     }
 
-    async function loadRegistrations() {
+    async function loadRegistrations(direction = "current") {
+        const candidate = pageCandidate("registrations", direction);
+        pageState.registrations.busy = true; updatePageControls("registrations");
         refreshButton.disabled = true;
         loginFeedback.textContent = "Checking access...";
         setFeedback("Loading registrations...", "pending");
@@ -1428,15 +1518,7 @@
                 return;
             }
 
-            const response = await fetch(
-                apiBase + "/admin/registrations",
-                {
-                    headers: {
-                        Authorization:
-                        `Bearer ${adminToken}`,
-                    },
-                },
-            );
+            const response = await window.HACYPAA_ADMIN_DATA.fetchPage(apiBase, "registrations", adminToken, candidate.cursor);
 
             const data = await response
                 .json()
@@ -1468,11 +1550,12 @@
                 );
             }
 
-            renderRegistrations(data.registrations);
+            usePage("registrations", candidate, data);
+            renderRegistrations(data.registrations, data);
             showDashboard();
 
             setFeedback(
-                "Registration list is current.",
+                "Registration list loaded. Refresh to include new submissions.",
                 "success",
             );
         } catch (error) {
@@ -1487,10 +1570,13 @@
             }
         } finally {
             refreshButton.disabled = false;
+            pageState.registrations.busy = false; updatePageControls("registrations");
         }
     }
 
-    async function loadPanelists() {
+    async function loadPanelists(direction = "current") {
+        const candidate = pageCandidate("panelists", direction);
+        pageState.panelists.busy = true; updatePageControls("panelists");
         refreshButton.disabled = true;
 
         setPanelistFeedback(
@@ -1509,15 +1595,7 @@
                 return;
             }
 
-            const response = await fetch(
-                apiBase + "/admin/panelists",
-                {
-                    headers: {
-                        Authorization:
-                            `Bearer ${adminToken}`,
-                    },
-                },
-            );
+            const response = await window.HACYPAA_ADMIN_DATA.fetchPage(apiBase, "panelists", adminToken, candidate.cursor);
 
             const data = await response
                 .json()
@@ -1549,11 +1627,12 @@
                 );
             }
 
-            renderPanelists(data.panelists);
+            usePage("panelists", candidate, data);
+            renderPanelists(data.panelists, data);
             showDashboard();
 
             setPanelistFeedback(
-                "Panelist list is current.",
+                "Panelist list loaded. Refresh to include new submissions.",
                 "success",
             );
         } catch (error) {
@@ -1568,6 +1647,7 @@
             }
         } finally {
             refreshButton.disabled = false;
+            pageState.panelists.busy = false; updatePageControls("panelists");
         }
     }
 
@@ -1691,7 +1771,7 @@
 
         const approved = window.confirm(
             "Permanently delete registration " + registrationCode + "?\n\n" +
-            "This removes its notes, event history, and receipts. " +
+            "This removes attendee details, notes, and receipts. A minimal administrative history is retained. " +
             "This cannot be undone and does not refund a payment.",
         );
 
@@ -1852,8 +1932,8 @@
             await loadRegistrations();
 
             setFeedback(
-                `${registrationCode} marked ` +
-                    `${statusLabels[nextStatus]}.`,
+                `${registrationCode} marked ${statusLabels[nextStatus]}.` +
+                    (nextStatus === "confirmed" ? " Confirmation email: " + emailStateLabel(data.confirmationEmail || { status: "untracked" }) + "." : ""),
                 "success",
             );
         } catch (error) {
@@ -2004,15 +2084,20 @@
 
     refreshButton.addEventListener("click", function () {
         if (activeView === "volunteers") {
-            loadPanelists();
+            loadPanelists("reset");
         } else {
-            loadRegistrations();
+            loadRegistrations("reset");
         }
     });
 
     exportRegistrationsPdfButton.addEventListener(
         "click",
-        exportRegistrationsPdf,
+        () => { void exportRegistrationsPdf(); },
+    );
+
+    exportRegistrationRosterPdfButton.addEventListener(
+        "click",
+        () => { void exportRegistrationsPdf("roster"); },
     );
 
     exportPanelistsPdfButton.addEventListener(

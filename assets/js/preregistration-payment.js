@@ -81,7 +81,7 @@
         }
 
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 apiBase +
                     "/registrations/payment-link?token=" +
                     encodeURIComponent(token),
@@ -225,7 +225,7 @@
         );
 
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 apiBase + "/registrations/payment-report",
                 {
                     method: "POST",
@@ -277,10 +277,10 @@ resendButton?.addEventListener("click", async function () {
     setFeedback(linkFeedback, "Requesting a new payment link...", "pending");
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 90000);
 
     try {
-        const response = await fetch(
+        const response = await window.HACYPAAProtectedFetch(
             apiBase + "/registrations/resend-payment-link",
             {
                 method: "POST",

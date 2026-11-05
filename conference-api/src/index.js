@@ -1,4 +1,11 @@
 import Stripe from "stripe";
+import { guardPublicRequest, publicBotConfig, readJsonObject } from "./request-security.js";
+import { loadAdminPage } from "./admin-pagination.js";
+import { changeRegistrationStatus, deleteRegistrationWithAudit, pruneSecurityHistory } from "./registration-audit.js";
+import { confirmationStatements, confirmationState, latestConfirmation, processConfirmationEmail,
+	queueManualConfirmation, refreshConfirmationDelivery, retryDueConfirmations } from "./confirmation-mail.js";
+import { findRemotePrintifyOrder, markPrintifySubmissionIntent, reconcileOutstandingFulfillment } from "./printify-reconciliation.js";
+import { CONFIRMATION_TAG, handleResendWebhook } from "./resend-webhook.js";
 import {
 	createRemoteJWKSet,
 	errors,
@@ -128,6 +135,11 @@ function cleanText(value) {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+function liveFulfillmentEnabled(env) {
+	return env.FULFILLMENT_MODE === "live" &&
+		/^(?:sk|rk)_live_[A-Za-z0-9]+$/.test(cleanText(env.STRIPE_SECRET_KEY));
+}
+
 function stripeObjectID(value) {
 	if (typeof value === "string") return value;
 
@@ -205,9 +217,10 @@ function buildOrderRecord(event, session) {
 				amountDiscount ||
 		!Number.isInteger(event.created) ||
 		event.created <= 0 ||
-		typeof event.livemode !== "boolean" ||
-		typeof session.livemode !== "boolean" ||
-		event.livemode !== session.livemode ||
+		event.livemode !== true ||
+		session.livemode !== true ||
+		!/^cs_live_[A-Za-z0-9]+$/.test(session.id) ||
+		session.id !== event.data?.object?.id ||
 		session.object !== "checkout.session" ||
 		session.mode !== "payment" ||
 		session.status !== "complete" ||
@@ -263,6 +276,9 @@ function buildOrderRecord(event, session) {
 }
 
 async function storePaidOrder(db, order, items) {
+	if (order.livemode !== 1) {
+		throw new Error("Only live paid orders may enter fulfillment storage");
+	}
 	if (!db) {
 		throw new Error("ORDERS_DB is not configured");
 	}
@@ -464,6 +480,10 @@ async function loadFulfillmentOrder(db, orderID) {
 					shipping_postal_code,
 					shipping_country,
 					fulfillment_status,
+					fulfillment_attempts,
+					printify_submission_state,
+					printify_post_started_at,
+					printify_reconciliation_page,
 					printify_order_id
 				FROM orders
 				WHERE id = ?
@@ -500,6 +520,9 @@ async function loadFulfillmentOrder(db, orderID) {
 
 export function buildPrintifyOrderPayload(fulfillmentOrder) {
 	const { order, items } = fulfillmentOrder;
+	if (order.livemode !== 1 || !/^cs_live_[A-Za-z0-9]+$/.test(order.stripe_session_id)) {
+		throw new Error("Only live paid orders may be submitted to Printify");
+	}
 	const nameParts = order.shipping_name.trim().split(/\s+/);
 	const firstName = nameParts.shift();
 	const lastName = nameParts.join(" ") || firstName;
@@ -742,7 +765,7 @@ async function submitPrintifyOrder(
 			typeof responseData?.message === "string"
 				? responseData.message
 				: `HTTP ${response.status}`;
-		throw new Error(`Printify rejected order: ${message}`);
+		throw new Error(`Printify rejected order: HTTP ${response.status}`);
 	}
 
 	if (
@@ -770,6 +793,7 @@ async function claimOrderForFulfillment(db, orderID) {
 					last_fulfillment_error = NULL,
 					updated_at = unixepoch()
 				WHERE id = ?
+					AND livemode = 1
 					AND printify_order_id IS NULL
 					AND (
 						fulfillment_status IN (
@@ -800,13 +824,16 @@ async function recordPrintSubmission(
 				UPDATE orders
 				SET
 					fulfillment_status = 'submitted',
+					printify_submission_state = 'accepted',
+					printify_reconciliation_page = 1,
+					last_printify_reconciliation_at = unixepoch(),
 					printify_order_id = ?,
 					printify_status = ?,
 					printify_submitted_at = unixepoch(),
 					last_fulfillment_error = NULL,
 					updated_at = unixepoch()
 				WHERE id = ?
-					AND fulfillment_status = 'submitting'
+					AND fulfillment_status IN ('submitting', 'failed')
 					AND printify_order_id IS NULL
 				`,
 		)
@@ -841,6 +868,9 @@ async function recordFulfillmentFailure(
 				UPDATE orders
 				SET
 					fulfillment_status = 'failed',
+					printify_submission_state = CASE
+						WHEN printify_post_started_at IS NOT NULL THEN 'ambiguous'
+						ELSE printify_submission_state END,
 					last_fulfillment_error = ?,
 					updated_at = unixepoch()
 				WHERE id = ?
@@ -869,12 +899,14 @@ export async function sendRegistrationEmail(env, email) {
 				"Content-Type": "application/json",
 				"Idempotency-Key": email.idempotencyKey,
 			},
+			signal: AbortSignal.timeout(10000),
 			body: JSON.stringify({
 				from,
 				to: [email.to],
 				subject: email.subject,
 				html: email.html,
 				text: email.text,
+				...(email.tags ? { tags: email.tags } : {}),
 			}),
 		},
 	);
@@ -989,7 +1021,8 @@ export async function sendPaymentConfirmationEmail(env, registration) {
 			to: registration.email,
 			subject: "Your HACYPAA XI registration is confirmed",
 			idempotencyKey:
-				`prereg-payment-confirmed/${registration.registrationCode}`,
+				registration.confirmationIdempotencyKey || `prereg-payment-confirmed/${registration.registrationCode}`,
+			tags: registration.confirmationJobId ? [{ name: CONFIRMATION_TAG, value: registration.confirmationJobId }] : undefined,
 			text: [
 				`Hi ${registration.firstName},`,
 				"",
@@ -1300,7 +1333,7 @@ export async function handleResendPaymentLink(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{
@@ -1798,7 +1831,7 @@ export async function handlePaymentReport(request, env, corsHeaders) {
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{ ok: false, error: "Request body must be valid JSON" },
@@ -2002,7 +2035,7 @@ export async function handlePanelistApplication(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{
@@ -2210,7 +2243,7 @@ export async function handleAdminAccessibilityUpdate(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{
@@ -2345,7 +2378,7 @@ export async function handleAdminRegistrationDelete(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{ ok: false, error: "Request body must be valid JSON" },
@@ -2373,34 +2406,7 @@ export async function handleAdminRegistrationDelete(
 	}
 
 	try {
-		const results = await env.ORDERS_DB.batch([
-			env.ORDERS_DB.prepare(`
-				DELETE FROM registration_events
-				WHERE registration_id IN (
-				SELECT id FROM registrations
-				WHERE registration_code = ?
-				)
-			`).bind(registrationCode),
-			env.ORDERS_DB.prepare(`
-				DELETE FROM registration_receipts
-				WHERE registration_id IN (
-					SELECT id FROM registrations
-					WHERE registration_code = ?
-				)
-			`).bind(registrationCode),
-			env.ORDERS_DB.prepare(`
-				DELETE FROM registrations
-				WHERE registration_code = ?
-			`).bind(registrationCode),
-		]);
-
-		if (!results[2]?.meta?.changes) {
-			return json(
-				{ ok: false, error: "Registration not found" },
-				404,
-				headers,
-			);
-		}
+        await deleteRegistrationWithAudit(env, registrationCode, authorization.userId);
 
 		return json({ ok: true, registrationCode }, 200, headers);
 	} catch (error) {
@@ -2410,8 +2416,8 @@ export async function handleAdminRegistrationDelete(
 		});
 
 		return json(
-			{ ok: false, error: "Could not delete registration" },
-			503,
+			{ ok: false, error: error.status ? error.message : "Could not delete registration" },
+			error.status || 503,
 			headers,
 		);
 	}
@@ -2464,8 +2470,7 @@ export async function handleAdminRegistrations(
 	}
 
 	try {
-		const result = await env.ORDERS_DB.prepare(`
-			SELECT
+		const result = await loadAdminPage(env.ORDERS_DB, request, "registrations", `SELECT id,
 				registration_code AS registrationCode,
 				first_name AS firstName,
 				last_name AS lastName,
@@ -2495,17 +2500,20 @@ export async function handleAdminRegistrations(
 				payment_reference AS paymentReference,
 				payment_reported_at AS paymentReportedAt,
 				confirmed_at AS  confirmedAt,
+                confirmed_by_user_id AS confirmedByUserId,
+                confirmation_email_sent_at AS confirmationEmailSentAt,
+                confirmation_email_delivery_status AS confirmationEmailDeliveryStatus,
+                coalesce((SELECT j.status FROM registration_confirmation_mail j WHERE j.registration_id = registrations.id ORDER BY j.rowid DESC LIMIT 1),
+                    CASE WHEN confirmation_email_sent_at IS NOT NULL THEN 'sent' ELSE 'untracked' END) AS confirmationEmailStatus,
 				created_at AS  createdAt,
 				updated_at AS updatedAt
-			FROM registrations
-			ORDER BY created_at DESC, id DESC
-			LIMIT 500
-	`).all();
+			FROM registrations`);
 
 	return json(
 		{
 			ok: true,
 			registrations: result.results || [],
+                total: result.total, counts: result.counts, pagination: result.pagination,
 		},
 		200,
 		headers,
@@ -2519,9 +2527,9 @@ export async function handleAdminRegistrations(
 		return json(
 			{
 				ok: false,
-				error: "Could not load registration records",
+				error: error.status === 400 ? error.message : "Could not load registration records",
 			},
-			503,
+			error.status === 400 ? 400 : 503,
 			headers,
 		)
 	}
@@ -2574,8 +2582,7 @@ export async function handleAdminPanelists(
 	}
 
 	try {
-		const result = await env.ORDERS_DB.prepare(`
-			SELECT
+		const result = await loadAdminPage(env.ORDERS_DB, request, "panelist_volunteers", `SELECT
 				id,
 				first_name AS firstName,
 				last_name AS lastName,
@@ -2593,10 +2600,7 @@ export async function handleAdminPanelists(
 				admin_notes AS adminNotes,
 				created_at AS createdAt,
 				updated_at AS updatedAt
-			FROM panelist_volunteers
-			ORDER BY created_at DESC, id DESC
-			LIMIT 500
-		`).all();
+			FROM panelist_volunteers`);
 
 		const panelists = (
 			result.results || []
@@ -2626,6 +2630,7 @@ export async function handleAdminPanelists(
 			{
 				ok: true,
 				panelists,
+                total: result.total, counts: result.counts, pagination: result.pagination,
 			},
 			200,
 			headers,
@@ -2639,9 +2644,9 @@ export async function handleAdminPanelists(
 		return json(
 			{
 				ok: false,
-				error: "Could not load panelist records",
+				error: error.status === 400 ? error.message : "Could not load panelist records",
 			},
-			503,
+			error.status === 400 ? 400 : 503,
 			headers,
 		);
 	}
@@ -2674,7 +2679,7 @@ export async function handleAdminPanelistDelete(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{ ok: false, error: "Request body must be valid JSON" },
@@ -2761,7 +2766,7 @@ export async function handleAdminPanelistsUpdate(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return json(
 			{ ok: false, error: "Request body must be valid JSON" },
@@ -2855,6 +2860,31 @@ export async function handleAdminPanelistsUpdate(
 	}
 }
 
+export async function handleAdminConfirmationEmail(request, env, corsHeaders) {
+    const headers = { ...corsHeaders, "Cache-Control": "no-store" };
+    const auth = await authorizePreregAdmin(request, env);
+    if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, headers);
+    if (!ADMIN_PERMISSIONS[auth.role]?.registrations) return json({ ok: false, error: "Forbidden" }, 403, headers);
+    try {
+        const body = await readJsonObject(request);
+        const code = cleanText(body.registrationCode).toUpperCase();
+        const action = body.action || "retry";
+        if (!code || code.length > 80 || !["retry", "resend", "refresh"].includes(action)) {
+            return json({ ok: false, error: "Invalid registration or email action" }, 400, headers);
+        }
+        let state;
+        if (action === "refresh") state = await refreshConfirmationDelivery(env, code);
+        else {
+            const job = await queueManualConfirmation(env, code, auth.userId,
+                { resend: action === "resend", requestKey: body.requestKey });
+            state = await processConfirmationEmail(env, job.id, sendPaymentConfirmationEmail);
+        }
+        return json({ ok: true, confirmationEmail: state }, 200, headers);
+    } catch (error) {
+        return json({ ok: false, error: error.status ? error.message : "Could not process confirmation email" }, error.status || 503, headers);
+    }
+}
+
 async function handleAdminRegistrationStatus(
 	request,
 	env,
@@ -2893,7 +2923,7 @@ async function handleAdminRegistrationStatus(
 	let body;
 
 	try {
-		body = await request.json();
+		body = await readJsonObject(request);
 	} catch {
 		return Response.json(
 			{
@@ -2902,7 +2932,7 @@ async function handleAdminRegistrationStatus(
 			},
 			{
 				status: 400,
-				headers: corsHeaders,
+				headers,
 			},
 		);
 	}
@@ -2934,96 +2964,35 @@ async function handleAdminRegistrationStatus(
 			},
 			{
 				status: 400,
-				headers: corsHeaders,
+				headers,
 			},
 		);
 	}
 
-	const now = Math.floor(Date.now() / 1000);
-	const registration = await env.ORDERS_DB.prepare(
-		`
-			SELECT
-				registration_code AS registrationCode,
-				first_name AS firstName,
-				email,
-				status,
-				amount_due_cents AS amountDueCents
-			FROM registrations
-			WHERE registration_code = ?
-			LIMIT 1
-		`,
-	)
-		.bind(registrationCode)
-		.first();
-
-	if (!registration) {
-		return Response.json(
-			{
-				ok: false,
-				error: "Registration not found.",
-			},
-			{
-				status: 404,
-				headers: corsHeaders,
-			},
-		);
-	}
-
-	const shouldSendConfirmation =
-		nextStatus === "confirmed" &&
-		registration.status !== "confirmed";
-
-	const confirmedAt =
-		nextStatus === "confirmed" ? now : null;
-
-	const result = await env.ORDERS_DB.prepare(
-		`
-			UPDATE registrations
-			SET
-				status = ?,
-				confirmed_at = ?,
-				updated_at = ?
-			WHERE registration_code = ?
-		`,
-	)
-		.bind(
-			nextStatus,
-			confirmedAt,
-			now,
-			registrationCode,
-		)
-		.run();
-
-	if (!result.meta?.changes) {
-		return Response.json(
-			{
-				ok: false,
-				error: "Registration not found.",
-			},
-			{
-				status: 404,
-				headers: corsHeaders,
-			},
-		);
-	}
-
-	if (shouldSendConfirmation) {
-		try {
-			await sendPaymentConfirmationEmail(
-				env,
-				registration,
-			);
-		} catch (error) {
-			console.error("Confirmation email failed", {
-				name: error?.name,
-				message: error?.message,
-			});
-		}
-	}
+    let change;
+    const confirmationJobId = crypto.randomUUID();
+    try {
+        change = await changeRegistrationStatus(env, registrationCode, nextStatus, adminAuthorization.userId,
+            details => confirmationStatements(env, details, confirmationJobId));
+    } catch (error) {
+        return json({ ok: false, error: error.status ? error.message : "Could not update registration" }, error.status || 503, headers);
+    }
+    const registration = change.registration;
+    const now = change.now;
+    const confirmedAt = registration.confirmedAt;
+    let emailState = { status: nextStatus === "confirmed" ? "untracked" : "canceled" };
+    if (nextStatus === "confirmed") {
+        const job = change.changed ? { id: confirmationJobId } : await latestConfirmation(env.ORDERS_DB, registration.id);
+        if (job) {
+            try { emailState = await processConfirmationEmail(env, job.id, sendPaymentConfirmationEmail); }
+            catch { emailState = { status: "pending", errorCode: "tracking_unavailable" }; }
+        }
+    }
 
 	return Response.json(
 		{
 			ok: true,
+            confirmationEmail: emailState,
 			registration: {
 				registrationCode,
 				status: nextStatus,
@@ -3032,7 +3001,7 @@ async function handleAdminRegistrationStatus(
 			},
 		},
 		{
-			headers: corsHeaders,
+			headers,
 		},
 	);
 }
@@ -3054,50 +3023,16 @@ export default {
 			});
 		}
 
-		const publicWritePaths = new Set([
-			"/registrations",
-			"/registrations/resend-payment-link",
-			"/registrations/payment-report",
-			"/panelists",
-			"/checkout/shipping-quote",
-			"/checkout/session",
-		]);
-
-		if (
-			request.method === "POST" &&
-			publicWritePaths.has(url.pathname)
-		) {
-			const headers = {
-				...corsHeaders,
-				"Cache-Control": "no-store",
-				"Retry-After": "60",
-			};
-
-			const clientIp =
-				request.headers.get("CF-Connecting-IP") || "unknown";
-
-			try {
-				const { success } = await env.PUBLIC_WRITE_LIMITER.limit({
-					key: url.pathname + ":" + clientIp,
-				});
-
-				if (!success) {
-					return json(
-						{ ok: false, error: "Too many requests. Please wait a minute and try again." },
-						429,
-						headers,
-					);
-				}
-			} catch {
-				console.error("Public request rate limiter unavailable");
-
-				return json(
-					{ ok: false, error: "Service temporarily unavailable. Please try again."},
-					503,
-					headers,
-				);
-			}
-		}
+		if (request.method === "GET" && url.pathname === "/public/config") {
+            return json(publicBotConfig(env), 200, { ...corsHeaders, "Cache-Control": "public, max-age=300" });
+        }
+        try {
+            await guardPublicRequest(request, env, ALLOWED_ORIGINS);
+        } catch (error) {
+            const status = error.status || 503;
+            return json({ ok: false, error: error.status ? error.message : "Service temporarily unavailable. Please try again." }, status,
+                { ...corsHeaders, "Cache-Control": "no-store", ...(status === 429 ? { "Retry-After": "60" } : {}) });
+        }
 
 		const diagnosticPaths = new Set([
 			"/stripe/status",
@@ -3147,6 +3082,16 @@ export default {
 
 			return response;
 		}
+
+        if (request.method === "POST" && url.pathname === "/resend/webhook") {
+            try { return json(await handleResendWebhook(request, env), 200, { "Cache-Control": "no-store" }); }
+            catch (error) {
+                const status = error.status || 503;
+                if (!error.status) console.error("Email delivery tracking temporarily unavailable");
+                return json({ ok: false, error: error.status ? error.message : "Email delivery tracking temporarily unavailable" }, status,
+                    { "Cache-Control": "no-store", ...(status === 429 ? { "Retry-After": "60" } : {}) });
+            }
+        }
 
 		if (
 			request.method === "POST" &&
@@ -3220,6 +3165,15 @@ export default {
 			}
 
 			const eventSession = event.data?.object;
+
+			// A verified test event is acknowledged without any provider lookup,
+			// database write or queue job. Never route test payments to Printify.
+			if (event.livemode !== true || eventSession?.livemode !== true) {
+				return json({ received: true, ignored: true }, 200, { "Cache-Control": "no-store" });
+			}
+			if (!liveFulfillmentEnabled(env)) {
+				return json({ ok: false, error: "Live fulfillment is not enabled" }, 503, { "Cache-Control": "no-store" });
+			}
 
 			if (
 				eventSession?.object !== "checkout.session" ||
@@ -3415,6 +3369,10 @@ export default {
 			);
 		}
 
+        if (request.method === "POST" && url.pathname === "/admin/registrations/confirmation-email") {
+            return handleAdminConfirmationEmail(request, env, corsHeaders);
+        }
+
 		if (
 			request.method === "GET" &&
 			url.pathname === "/admin/session"
@@ -3578,7 +3536,7 @@ export default {
 			let body;
 
 			try {
-				body = await request.json();
+				body = await readJsonObject(request);
 			} catch {
 				return json(
 					{
@@ -3610,7 +3568,7 @@ export default {
 				body?.accommodationAsl === true ? 1 : 0;
 
 			const dietaryRestrictions =
-				cleanText(body?.accommodationDetails) || "";
+				cleanText(body?.dietaryRestrictions) || "";
 
 			const accommodationDetails =
 				cleanText(body?.accommodationDetails) || null;
@@ -3670,6 +3628,8 @@ export default {
 				location.length > 150 ||
 				(homeGroup?.length || 0) > 150 ||
 				dietaryRestrictions.length > 500 ||
+				(body.dietaryRestrictions != null && typeof body.dietaryRestrictions !== "string") ||
+				(body.accommodationDetails != null && typeof body.accommodationDetails !== "string") ||
 				(accommodationDetails?.length || 0) > 500 ||
 				hasInvalidBoolean ||
 				typeof body.volunteerInterest !== "boolean" ||
@@ -4057,6 +4017,11 @@ export default {
 					},
 				);
 
+				if (session.id !== sessionID || session.metadata?.source !== "hacypaa_merch") {
+					return json({ ok: false, error: "Could not verify Checkout Session" }, 404,
+						{ ...corsHeaders, "Cache-Control": "no-store" });
+				}
+
 				const items = (session.line_items?.data || []).map(
 					(item) => ({
 						description: item.description || "Merchandise",
@@ -4120,7 +4085,7 @@ export default {
 			let body;
 
 			try {
-				body = await request.json();
+				body = await readJsonObject(request);
 			} catch {
 				return json(
 					{ ok: false, error: "Request body must be valid JSON." },
@@ -4163,7 +4128,7 @@ export default {
 			let body;
 
 			try {
-				body = await request.json();
+				body = await readJsonObject(request);
 			} catch {
 				return Response.json(
 					{ ok: false, error: "Request body must be valid JSON" },
@@ -4455,6 +4420,12 @@ export default {
 		return json({ error: "Not found"}, 404, corsHeaders);
 	},
 
+    async scheduled(controller, env) {
+        await retryDueConfirmations(env, sendPaymentConfirmationEmail);
+		await reconcileOutstandingFulfillment(env, recordPrintSubmission);
+        await pruneSecurityHistory(env.ORDERS_DB);
+    },
+
 	async queue(batch, env) {
 		for (const message of batch.messages) {
 			const orderID = Number(message.body?.orderID);
@@ -4515,6 +4486,12 @@ export default {
 				continue;
 			}
 
+			if (!liveFulfillmentEnabled(env)) {
+				console.error("Live fulfillment disabled or Stripe key mode is not live", { orderID });
+				message.retry({ delaySeconds: 60 });
+				continue;
+			}
+
 			const printifyToken =
 				env.PRINTIFY_API_TOKEN?.trim();
 			const printifyShopID =
@@ -4546,15 +4523,18 @@ export default {
 			}
 
 			try {
-				const printifyPayload =
-					buildPrintifyOrderPayload(fulfillmentOrder);
-
-				const printifyOrder =
-					await submitPrintifyOrder(
-						printifyToken,
-						printifyShopID,
-						printifyPayload,
-					);
+				// The durable claim counter proves whether this worker has ever
+				// attempted this order. Every retry reconciles before any submission.
+				const firstAttempt = order.fulfillment_attempts === 0 && order.printify_submission_state === 'new';
+				let printifyOrder = firstAttempt ? null : await findRemotePrintifyOrder(env, order);
+				if (!printifyOrder) {
+					if (order.printify_submission_state !== 'new' || order.printify_post_started_at != null) {
+						throw new Error("Previous submission may have been accepted; reconciliation or manual review is required");
+					}
+					const printifyPayload = buildPrintifyOrderPayload(fulfillmentOrder);
+					await markPrintifySubmissionIntent(env.ORDERS_DB, orderID);
+					printifyOrder = await submitPrintifyOrder(printifyToken, printifyShopID, printifyPayload);
+				}
 				await recordPrintSubmission(
 					env.ORDERS_DB,
 					orderID,

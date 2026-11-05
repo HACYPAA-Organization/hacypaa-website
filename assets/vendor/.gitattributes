@@ -1,0 +1,3 @@
+# Integrity hashes require the original LF bytes on every platform.
+# Preserve upstream whitespace; verify exact bytes with the integrity checks.
+*.js text eol=lf -whitespace

@@ -43,7 +43,7 @@
 
     async function loadRegistrationCost() {
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 apiBase + "/registration/config",
             );
 
@@ -160,11 +160,11 @@
         const controller = new AbortController();
         const timer = setTimeout(
             () => controller.abort(),
-            15000,
+            90000,
         );
 
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 apiBase + "/registrations",
                 {
                     method: "POST",
@@ -263,11 +263,11 @@
         const controller = new AbortController();
         const timer = setTimeout(
             () => controller.abort(),
-            15000,
+            90000,
         );
 
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 apiBase +
                     "/registrations/resend-payment-link",
                 {

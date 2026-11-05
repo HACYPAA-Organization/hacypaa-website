@@ -191,7 +191,7 @@
                 throw new Error("Your cart is empty.");
             }
 
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 checkoutApi + "/checkout/shipping-quote",
                 {
                     method: "POST",
@@ -252,7 +252,7 @@
             };
         });
 
-        const response = await fetch(checkoutApi + "/checkout/session", {
+        const response = await window.HACYPAAProtectedFetch(checkoutApi + "/checkout/session", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -373,7 +373,7 @@
         checkoutStatus.textContent = "Verifying payment...";
 
         try {
-            const response = await fetch(
+            const response = await window.HACYPAAProtectedFetch(
                 checkoutApi +
                 "/checkout/session-status?session_id=" +
                 encodeURIComponent(sessionID),

@@ -1,0 +1,29 @@
+[
+  {
+    "package": "@supabase/supabase-js",
+    "version": "2.117.2",
+    "path": "/assets/vendor/supabase-2.117.2.umd.js",
+    "source": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js",
+    "npmTarballIntegrity": "sha512-eSG2VKnHR+Clp1PmidZ1/weJ8PJwoybjva3L2GgKqFG4YDS1Iqmc61psKGZP5xw6OMT2O7ZorPR42PY6q1BOXg==",
+    "integrity": "sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok",
+    "sizeBytes": 217945
+  },
+  {
+    "package": "jspdf",
+    "version": "4.2.1",
+    "path": "/assets/vendor/jspdf-4.2.1.umd.min.js",
+    "source": "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+    "npmTarballIntegrity": "sha512-YyAXyvnmjTbR4bHQRLzex3CuINCDlQnBqoSYyjJwTP2x9jDLuKDzy7aKUl0hgx3uhcl7xzg32agn5vlie6HIlQ==",
+    "integrity": "sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3",
+    "sizeBytes": 420165
+  },
+  {
+    "package": "jspdf-autotable",
+    "version": "5.0.9",
+    "path": "/assets/vendor/jspdf-autotable-5.0.9.min.js",
+    "source": "https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.9/dist/jspdf.plugin.autotable.min.js",
+    "npmTarballIntegrity": "sha512-wIOG2ggjG6Y7qvqjgFACZZeu+oHxoxrhwCn1lTMxjPhojLVVvu2U2yS2srVCYl0CXe6pqiG/jQMIIS0CFn1ssw==",
+    "integrity": "sha384-A77YsHWitrPuAj8E0AuB033EXzymUxIajnWKPzrrzqFoYYSCEpFennDUjMG2R1L3",
+    "sizeBytes": 32791
+  }
+]

@@ -2657,3 +2657,4 @@ body:has(#panelist-form) .discord-widget-copy p {
   box-shadow: none;
   accent-color: var(--event-accent);
 }
+.hacypaa-verification { margin-block: 1rem; }
